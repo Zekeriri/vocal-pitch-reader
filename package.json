@@ -1,0 +1,17 @@
+{
+  "name": "pitch-reader",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 8741 --strictPort",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 8741 --strictPort",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^3.2.4"
+  }
+}

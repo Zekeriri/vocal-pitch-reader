@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10110e" />
+    <title>音高朗读</title>
+  </head>
+  <body>
+    <main class="stage" id="stage" data-state="idle">
+      <header>
+        <p class="eyebrow">单音练习</p>
+        <h1>音高朗读</h1>
+        <p class="lede">唱稳一个音，就念出音名。不用盯着屏幕。</p>
+      </header>
+
+      <section class="readout">
+        <p id="note" class="note is-empty">·</p>
+        <p id="detail" class="detail">打开麦克风，唱一个音</p>
+        <div class="ruler" aria-hidden="true">
+          <div class="track">
+            <div class="zone"></div>
+          </div>
+          <div id="mark" class="mark" hidden></div>
+          <div class="scale">
+            <span>−50</span>
+            <span>准</span>
+            <span>+50</span>
+          </div>
+        </div>
+        <p id="spoken" class="spoken" aria-live="assertive"></p>
+      </section>
+
+      <div class="meter" title="输入响度">
+        <div id="level" class="meter-level"></div>
+        <div id="gate-mark" class="meter-gate"></div>
+      </div>
+
+      <div class="actions">
+        <button id="listen" class="primary" type="button" aria-pressed="false">开始听</button>
+        <button id="self-test" class="ghost" type="button">试听 G3</button>
+      </div>
+      <p class="hint">请戴耳机。念出来的声音如果回到麦克风里，会干扰下一个音。</p>
+
+      <details class="settings">
+        <summary>调节</summary>
+        <label>
+          稳住才念
+          <input id="hold" type="range" min="200" max="800" step="20" value="320" />
+          <span id="hold-value">0.32 秒</span>
+        </label>
+        <label>
+          响度门限
+          <input id="gate" type="range" min="1" max="40" step="1" value="8" />
+          <span id="gate-value">适中</span>
+        </label>
+        <p>
+          电平要越过门限上的白点，音高再稳住，才会出声。停大约半秒再唱，同一个音会再念一次。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+        </p>
+      </details>
+
+      <p id="status" class="status" role="status"></p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
