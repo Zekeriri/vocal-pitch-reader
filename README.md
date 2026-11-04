@@ -42,6 +42,23 @@ npm run build
 
 空格键可以开始或停止聆听。
 
+## 放到 GitHub Pages
+
+GitHub 会自动提供 HTTPS，不用自己装证书。iPad 打开发布出来的网址就能用麦克风。免费账号需要把这个仓库设成公开。
+
+1. 在 GitHub 新建一个公开仓库，不要勾选添加 README。仓库名可以是 `vocal-pitch-reader`。
+2. 在项目目录执行（把用户名和仓库名换成你的）：
+
+```powershell
+git remote add github https://github.com/你的用户名/vocal-pitch-reader.git
+git push -u github main
+```
+
+3. 打开该仓库的 Settings → Pages。Build and deployment 的 Source 选 GitHub Actions，保存。
+4. 打开 Actions，等 Deploy GitHub Pages 变成绿色。站点地址是 `https://你的用户名.github.io/vocal-pitch-reader/`。
+
+以后改完代码，再执行 `git push github main`，页面会自动更新。iPad 用浏览器打开上面的 https 地址，点「开始听」。
+
 ## 局限
 
 - 有伴奏、合唱，或同时有两个人出声时，音高会乱。

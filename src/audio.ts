@@ -126,7 +126,11 @@ export class PitchListener {
   }
 
   private async attach(context: AudioContext, token: number): Promise<void> {
-    await context.audioWorklet.addModule(new URL('/pitch-worklet.js', window.location.href))
+    const workletUrl = new URL(
+      'pitch-worklet.js',
+      new URL(import.meta.env.BASE_URL, window.location.href),
+    )
+    await context.audioWorklet.addModule(workletUrl)
     if (token !== this.token) return
     const worklet = new AudioWorkletNode(context, 'pitch-reader')
     const monitor = context.createGain()
