@@ -18,6 +18,8 @@
 空格键可以开始或停止聆听。
 请让浏览器这个标签页留在前台。
 
+iPhone 请戴耳机。如果侧边是静音，系统会把网页声音关掉。
+
 需要已安装 Node.js 22 或更新版本：https://nodejs.org/
 
 放到 GitHub Pages 之后，iPad 打开 GitHub 给出的 https 地址即可使用。步骤写在 README.md 的「放到 GitHub Pages」。

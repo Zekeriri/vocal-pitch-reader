@@ -4,6 +4,7 @@ import {
   freqToMidi,
   midiToName,
   nameToSpeech,
+  noteSlotIndex,
   NoteLock,
   PitchDetector,
 } from './pitch.ts'
@@ -48,6 +49,11 @@ describe('note names', () => {
     expect(midiToName(Math.round(freqToMidi(440)))).toBe('A4')
     expect(nameToSpeech('G3')).toBe('G 3')
     expect(nameToSpeech('G#3')).toBe('G sharp 3')
+    expect(noteSlotIndex('C2')).toBe(0)
+    expect(noteSlotIndex('G3')).toBe(19)
+    expect(noteSlotIndex('B6')).toBe(59)
+    expect(noteSlotIndex('C1')).toBeNull()
+    expect(noteSlotIndex('C7')).toBeNull()
     expect(describeCents(4)).toBe('准')
     expect(describeCents(16)).toBe('偏高 16 音分')
     expect(describeCents(-12)).toBe('偏低 12 音分')
