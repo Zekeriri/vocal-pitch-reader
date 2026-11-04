@@ -57,9 +57,9 @@ export class PitchListener {
       throw new Error('这台浏览器没有麦克风接口。')
     }
 
-    // iPhone 默认把网页合成声静音，录音时还会改走听筒。
-    // 先保持 auto 让麦克风能打开，拿到麦之后再切到边录边放，把声音送回扬声器或耳机。
-    setAudioSession('auto')
+    // 先切到边录边放，再在这次点击里把静音循环播起来。
+    // iPhone 会把之后才开始的声音停掉，也会把录音时的声音送进听筒。
+    setAudioSession('play-and-record')
     this.voice.prime()
     this.voiceError = null
     const streamPromise = navigator.mediaDevices.getUserMedia({
@@ -73,6 +73,7 @@ export class PitchListener {
     const context = new AudioContext()
     this.context = context
     this.watchContext(context)
+    this.voice.attach(context)
     unlockAudio(context)
 
     try {
@@ -84,6 +85,7 @@ export class PitchListener {
       }
       setAudioSession('play-and-record')
       await resumeContext(context)
+      this.voice.prime()
       await this.attach(context, token)
       if (token !== this.token || !this.worklet) {
         stream.getTracks().forEach((track) => track.stop())
@@ -112,6 +114,7 @@ export class PitchListener {
     const context = new AudioContext()
     this.context = context
     this.watchContext(context)
+    this.voice.attach(context)
     unlockAudio(context)
     try {
       await resumeContext(context)

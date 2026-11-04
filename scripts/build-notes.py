@@ -102,6 +102,37 @@ def main() -> None:
             ]
         )
         print(f'wrote {OUT} ({OUT.stat().st_size} bytes), longest clip {longest:.2f}s')
+        export_mp3s(OUT)
+
+
+def export_mp3s(wav: Path) -> None:
+    """iPhone 播放短 mp3 比在一条长 wav 里跳转可靠。"""
+    for index in range(COUNT):
+        target = wav.parent / f'n{index:02d}.mp3'
+        subprocess.check_call(
+            [
+                'ffmpeg',
+                '-y',
+                '-v',
+                'error',
+                '-ss',
+                str(index * SLOT_SECONDS),
+                '-t',
+                str(SLOT_SECONDS),
+                '-i',
+                str(wav),
+                '-c:a',
+                'libmp3lame',
+                '-b:a',
+                '48k',
+                '-ar',
+                '22050',
+                '-ac',
+                '1',
+                str(target),
+            ]
+        )
+    print(f'wrote {COUNT} mp3 clips to {wav.parent}')
 
 
 if __name__ == '__main__':

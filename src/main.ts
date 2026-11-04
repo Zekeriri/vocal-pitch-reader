@@ -112,10 +112,13 @@ function renderDetection(detection: {
   voiceError: string | null
 }): void {
   renderMeter(detection.rms)
-  if (detection.voiceError) statusEl.textContent = detection.voiceError
+  if (detection.voiceError) {
+    statusEl.textContent = detection.voiceError
+    spokenEl.textContent = detection.voiceError
+  }
   if (detection.speaking) return
   const { result } = detection
-  if (result.announce) spokenEl.textContent = `念了 ${formatNote(result.announce)}`
+  if (result.announce && !detection.voiceError) spokenEl.textContent = `念了 ${formatNote(result.announce)}`
   if (!result.note || result.freq == null || result.cents == null) {
     scheduleClear(detection.mode)
     return
