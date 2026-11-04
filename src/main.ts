@@ -109,8 +109,10 @@ function renderDetection(detection: {
     announce: string | null
   }
   speaking: boolean
+  voiceError: string | null
 }): void {
   renderMeter(detection.rms)
+  if (detection.voiceError) statusEl.textContent = detection.voiceError
   if (detection.speaking) return
   const { result } = detection
   if (result.announce) spokenEl.textContent = `念了 ${formatNote(result.announce)}`

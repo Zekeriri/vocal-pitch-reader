@@ -1,5 +1,5 @@
 import { MedianPitch, NoteLock, PitchDetector, type LockResult } from './pitch.ts'
-import { NoteVoice, unlockAudio } from './speak.ts'
+import { NoteVoice, releaseAudioSession, resumeContext, setAudioSession, unlockAudio } from './speak.ts'
 
 export type ListenMode = 'idle' | 'mic' | 'test'
 
@@ -8,6 +8,7 @@ export type Detection = {
   rms: number
   result: LockResult
   speaking: boolean
+  voiceError: string | null
 }
 
 type WorkletMessage = {
@@ -29,6 +30,8 @@ export class PitchListener {
   private median = new MedianPitch(3)
   private lock = new NoteLock()
   private voice = new NoteVoice()
+  private voiceError: string | null = null
+  private unwatchContext: (() => void) | null = null
   private token = 0
   private testTimer = 0
   mode: ListenMode = 'idle'
@@ -54,6 +57,11 @@ export class PitchListener {
       throw new Error('这台浏览器没有麦克风接口。')
     }
 
+    // iPhone 默认把网页合成声静音，录音时还会改走听筒。
+    // 先保持 auto 让麦克风能打开，拿到麦之后再切到边录边放，把声音送回扬声器或耳机。
+    setAudioSession('auto')
+    this.voice.prime()
+    this.voiceError = null
     const streamPromise = navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: { ideal: false },
@@ -64,16 +72,18 @@ export class PitchListener {
     })
     const context = new AudioContext()
     this.context = context
+    this.watchContext(context)
     unlockAudio(context)
-    this.voice.attach(context)
 
     try {
-      await context.resume()
+      await resumeContext(context)
       const stream = await streamPromise
       if (token !== this.token) {
         stream.getTracks().forEach((track) => track.stop())
         return false
       }
+      setAudioSession('play-and-record')
+      await resumeContext(context)
       await this.attach(context, token)
       if (token !== this.token || !this.worklet) {
         stream.getTracks().forEach((track) => track.stop())
@@ -96,12 +106,15 @@ export class PitchListener {
     this.token++
     this.teardown()
     const token = this.token
+    setAudioSession('playback')
+    this.voice.prime()
+    this.voiceError = null
     const context = new AudioContext()
     this.context = context
+    this.watchContext(context)
     unlockAudio(context)
-    this.voice.attach(context)
     try {
-      await context.resume()
+      await resumeContext(context)
       await this.attach(context, token)
       if (token !== this.token || !this.worklet) return false
 
@@ -172,26 +185,48 @@ export class PitchListener {
           announce: null,
         },
         speaking: true,
+        voiceError: this.voiceError,
       })
       return
     }
     const smoothed = this.median.push(freq)
     const result = this.lock.update(performance.now(), smoothed)
     if (result.announce) {
-      void this.voice.play(result.announce).catch(() => {
-        // 声音文件没加载到时，屏幕上的音名仍然保留。
-      })
+      const announced = result.announce
+      void this.voice.play(announced).then(
+        (ok) => {
+          if (ok) this.voiceError = null
+          else if (this.voice.lastError) this.voiceError = this.voice.lastError
+        },
+        () => {
+          this.voiceError = this.voice.lastError ?? '音名没有播出来。请把音量打开后再试。'
+        },
+      )
     }
     this.onDetect({
       mode: this.mode,
       rms: frame.rms,
       result,
       speaking: false,
+      voiceError: this.voiceError,
     })
   }
 
+  private watchContext(context: AudioContext): void {
+    this.unwatchContext?.()
+    const onState = () => {
+      if (context.state === 'closed') return
+      if (context.state !== 'running') void resumeContext(context).catch(() => {})
+    }
+    context.addEventListener('statechange', onState)
+    this.unwatchContext = () => context.removeEventListener('statechange', onState)
+  }
+
   private teardown(): void {
-    this.voice.detach()
+    this.unwatchContext?.()
+    this.unwatchContext = null
+    this.voice.stop()
+    releaseAudioSession()
     window.clearTimeout(this.testTimer)
     this.testTimer = 0
     if (this.oscillator) {
