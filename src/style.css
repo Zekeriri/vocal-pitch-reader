@@ -246,6 +246,10 @@ input:focus-visible {
   display: none;
 }
 
+.status {
+  color: var(--warn);
+}
+
 .settings {
   background: var(--raise);
   border-radius: 1rem;
