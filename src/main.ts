@@ -1,5 +1,6 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
 import { describeCents, formatNote } from './pitch.ts'
+import { canSpeak, prepareSpeech, silenceSpeech, speakNote } from './speak.ts'
 import './style.css'
 
 const HOLD_KEY = 'pitch-reader-hold'
@@ -21,8 +22,10 @@ const gateValue = document.querySelector<HTMLElement>('#gate-value')!
 const stage = document.querySelector<HTMLElement>('#stage')!
 
 const listener = new PitchListener(renderDetection, onListenerStop)
+let speechWarned = false
 let clearTimer = 0
 
+prepareSpeech()
 restoreSettings()
 syncGateMark()
 renderIdle()
@@ -109,16 +112,18 @@ function renderDetection(detection: {
     announce: string | null
   }
   speaking: boolean
-  voiceError: string | null
 }): void {
   renderMeter(detection.rms)
-  if (detection.voiceError) {
-    statusEl.textContent = detection.voiceError
-    spokenEl.textContent = detection.voiceError
-  }
   if (detection.speaking) return
   const { result } = detection
-  if (result.announce && !detection.voiceError) spokenEl.textContent = `念了 ${formatNote(result.announce)}`
+  if (result.announce) {
+    spokenEl.textContent = `念了 ${formatNote(result.announce)}`
+    const spoke = speakNote(result.announce)
+    if (!spoke && !speechWarned) {
+      speechWarned = true
+      statusEl.textContent = '这台浏览器不会朗读，音名只显示在这里。'
+    }
+  }
   if (!result.note || result.freq == null || result.cents == null) {
     scheduleClear(detection.mode)
     return
@@ -146,6 +151,7 @@ function renderMeter(rms: number): void {
 
 function onListenerStop(kind: 'mic' | 'test'): void {
   if (kind === 'mic') {
+    silenceSpeech()
     renderIdle()
     return
   }
@@ -161,6 +167,7 @@ function renderIdle(): void {
   detailEl.textContent = '打开麦克风，唱一个音'
   hideMark()
   renderMeter(0)
+  if (!canSpeak()) statusEl.textContent = '这台浏览器不会朗读，音名只显示在这里。'
 }
 
 function resetControls(): void {

@@ -1,5 +1,4 @@
 import { MedianPitch, NoteLock, PitchDetector, type LockResult } from './pitch.ts'
-import { NoteVoice, releaseAudioSession, resumeContext, setAudioSession, unlockAudio } from './speak.ts'
 
 export type ListenMode = 'idle' | 'mic' | 'test'
 
@@ -8,7 +7,6 @@ export type Detection = {
   rms: number
   result: LockResult
   speaking: boolean
-  voiceError: string | null
 }
 
 type WorkletMessage = {
@@ -29,9 +27,6 @@ export class PitchListener {
   private detector = new PitchDetector()
   private median = new MedianPitch(3)
   private lock = new NoteLock()
-  private voice = new NoteVoice()
-  private voiceError: string | null = null
-  private unwatchContext: (() => void) | null = null
   private token = 0
   private testTimer = 0
   mode: ListenMode = 'idle'
@@ -57,11 +52,6 @@ export class PitchListener {
       throw new Error('这台浏览器没有麦克风接口。')
     }
 
-    // 先切到边录边放，再在这次点击里把静音循环播起来。
-    // iPhone 会把之后才开始的声音停掉，也会把录音时的声音送进听筒。
-    setAudioSession('play-and-record')
-    this.voice.prime()
-    this.voiceError = null
     const streamPromise = navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: { ideal: false },
@@ -72,20 +62,14 @@ export class PitchListener {
     })
     const context = new AudioContext()
     this.context = context
-    this.watchContext(context)
-    this.voice.attach(context)
-    unlockAudio(context)
 
     try {
-      await resumeContext(context)
+      await context.resume()
       const stream = await streamPromise
       if (token !== this.token) {
         stream.getTracks().forEach((track) => track.stop())
         return false
       }
-      setAudioSession('play-and-record')
-      await resumeContext(context)
-      this.voice.prime()
       await this.attach(context, token)
       if (token !== this.token || !this.worklet) {
         stream.getTracks().forEach((track) => track.stop())
@@ -108,16 +92,10 @@ export class PitchListener {
     this.token++
     this.teardown()
     const token = this.token
-    setAudioSession('playback')
-    this.voice.prime()
-    this.voiceError = null
     const context = new AudioContext()
     this.context = context
-    this.watchContext(context)
-    this.voice.attach(context)
-    unlockAudio(context)
     try {
-      await resumeContext(context)
+      await context.resume()
       await this.attach(context, token)
       if (token !== this.token || !this.worklet) return false
 
@@ -171,7 +149,7 @@ export class PitchListener {
 
   private handleFrame(frame: WorkletMessage): void {
     if (this.mode === 'idle' || !this.context) return
-    const speaking = this.voice.playing
+    const speaking = 'speechSynthesis' in window && window.speechSynthesis.speaking
     const estimate =
       frame.rms >= this.rmsMin ? this.detector.detect(frame.samples, this.context.sampleRate) : null
     const freq = estimate && estimate.clarity >= CLARITY_MIN ? estimate.freq : null
@@ -188,48 +166,20 @@ export class PitchListener {
           announce: null,
         },
         speaking: true,
-        voiceError: this.voiceError,
       })
       return
     }
     const smoothed = this.median.push(freq)
     const result = this.lock.update(performance.now(), smoothed)
-    if (result.announce) {
-      const announced = result.announce
-      void this.voice.play(announced).then(
-        (ok) => {
-          if (ok) this.voiceError = null
-          else if (this.voice.lastError) this.voiceError = this.voice.lastError
-        },
-        () => {
-          this.voiceError = this.voice.lastError ?? '音名没有播出来。请把音量打开后再试。'
-        },
-      )
-    }
     this.onDetect({
       mode: this.mode,
       rms: frame.rms,
       result,
       speaking: false,
-      voiceError: this.voiceError,
     })
   }
 
-  private watchContext(context: AudioContext): void {
-    this.unwatchContext?.()
-    const onState = () => {
-      if (context.state === 'closed') return
-      if (context.state !== 'running') void resumeContext(context).catch(() => {})
-    }
-    context.addEventListener('statechange', onState)
-    this.unwatchContext = () => context.removeEventListener('statechange', onState)
-  }
-
   private teardown(): void {
-    this.unwatchContext?.()
-    this.unwatchContext = null
-    this.voice.stop()
-    releaseAudioSession()
     window.clearTimeout(this.testTimer)
     this.testTimer = 0
     if (this.oscillator) {
