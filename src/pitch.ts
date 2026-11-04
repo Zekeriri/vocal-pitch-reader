@@ -48,6 +48,22 @@ export function nameToSpeech(note: string): string {
   return sharp ? `${letter} sharp ${octave}` : `${letter} ${octave}`
 }
 
+export const FIRST_NOTE_MIDI = 36
+export const NOTE_SLOT_COUNT = 60
+
+export function noteSlotIndex(note: string): number | null {
+  const match = /^([A-G])(#)?(-?\d+)$/.exec(note)
+  if (!match) return null
+  const [, letter, sharp, octaveText] = match
+  const pitch = NAMES.indexOf(`${letter}${sharp ?? ''}` as (typeof NAMES)[number])
+  if (pitch < 0) return null
+  const octave = Number(octaveText)
+  if (!Number.isInteger(octave)) return null
+  const index = (octave + 1) * 12 + pitch - FIRST_NOTE_MIDI
+  if (index < 0 || index >= NOTE_SLOT_COUNT) return null
+  return index
+}
+
 export function describeCents(cents: number): string {
   const rounded = Math.round(cents)
   if (Math.abs(rounded) < 8) return '准'

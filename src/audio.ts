@@ -1,4 +1,5 @@
 import { MedianPitch, NoteLock, PitchDetector, type LockResult } from './pitch.ts'
+import { NoteVoice, unlockAudio } from './speak.ts'
 
 export type ListenMode = 'idle' | 'mic' | 'test'
 
@@ -27,6 +28,7 @@ export class PitchListener {
   private detector = new PitchDetector()
   private median = new MedianPitch(3)
   private lock = new NoteLock()
+  private voice = new NoteVoice()
   private token = 0
   private testTimer = 0
   mode: ListenMode = 'idle'
@@ -62,6 +64,8 @@ export class PitchListener {
     })
     const context = new AudioContext()
     this.context = context
+    unlockAudio(context)
+    this.voice.attach(context)
 
     try {
       await context.resume()
@@ -94,6 +98,8 @@ export class PitchListener {
     const token = this.token
     const context = new AudioContext()
     this.context = context
+    unlockAudio(context)
+    this.voice.attach(context)
     try {
       await context.resume()
       await this.attach(context, token)
@@ -149,7 +155,7 @@ export class PitchListener {
 
   private handleFrame(frame: WorkletMessage): void {
     if (this.mode === 'idle' || !this.context) return
-    const speaking = 'speechSynthesis' in window && window.speechSynthesis.speaking
+    const speaking = this.voice.playing
     const estimate =
       frame.rms >= this.rmsMin ? this.detector.detect(frame.samples, this.context.sampleRate) : null
     const freq = estimate && estimate.clarity >= CLARITY_MIN ? estimate.freq : null
@@ -171,6 +177,11 @@ export class PitchListener {
     }
     const smoothed = this.median.push(freq)
     const result = this.lock.update(performance.now(), smoothed)
+    if (result.announce) {
+      void this.voice.play(result.announce).catch(() => {
+        // 声音文件没加载到时，屏幕上的音名仍然保留。
+      })
+    }
     this.onDetect({
       mode: this.mode,
       rms: frame.rms,
@@ -180,6 +191,7 @@ export class PitchListener {
   }
 
   private teardown(): void {
+    this.voice.detach()
     window.clearTimeout(this.testTimer)
     this.testTimer = 0
     if (this.oscillator) {
