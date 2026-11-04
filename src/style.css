@@ -1,0 +1,298 @@
+:root {
+  color-scheme: dark;
+  --bg: #10110e;
+  --raise: #1a1b16;
+  --ink: #f4f0e6;
+  --muted: #9a9588;
+  --line: #313228;
+  --amber: #f0b429;
+  --amber-ink: #1c1608;
+  --good: #d6e07a;
+  --warn: #ef7d57;
+  --track: #2a2b24;
+  font-family: "Avenir Next", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  min-height: 100dvh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.stage {
+  width: min(36rem, calc(100% - 2rem));
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 2.25rem 0 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.35rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+}
+
+h1 {
+  margin: 0.3rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 620;
+  letter-spacing: -0.03em;
+}
+
+.lede {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.readout {
+  padding: 1.25rem 0 0.25rem;
+}
+
+.note {
+  margin: 0;
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Songti SC", Georgia, serif;
+  font-size: clamp(5.5rem, 22vw, 9rem);
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  font-weight: 560;
+  color: var(--muted);
+}
+
+.note.is-empty {
+  color: var(--line);
+  font-size: clamp(3rem, 12vw, 5rem);
+}
+
+.note.is-live {
+  color: var(--ink);
+}
+
+.note.is-stable {
+  color: var(--warn);
+}
+
+.note.is-tuned {
+  color: var(--amber);
+  text-shadow: 0 0 28px rgba(240, 180, 41, 0.28);
+}
+
+.detail {
+  margin: 0.85rem 0 0;
+  min-height: 1.5rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+}
+
+.ruler {
+  position: relative;
+  margin-top: 1.35rem;
+  height: 2.6rem;
+}
+
+.track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.7rem;
+  height: 2px;
+  background: var(--track);
+}
+
+.zone {
+  position: absolute;
+  left: 42%;
+  width: 16%;
+  top: -4px;
+  height: 10px;
+  background: rgba(214, 224, 122, 0.35);
+}
+
+.mark {
+  position: absolute;
+  top: 0.15rem;
+  width: 2px;
+  height: 1.35rem;
+  background: var(--ink);
+  transform: translateX(-1px);
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  margin: 1.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.spoken {
+  min-height: 1.5rem;
+  margin: 0.9rem 0 0;
+  color: var(--good);
+  letter-spacing: 0.01em;
+}
+
+.meter {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.meter-level {
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--muted);
+}
+
+.meter-level.hot {
+  background: var(--amber);
+}
+
+.meter-gate {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  background: var(--ink);
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.primary,
+.ghost {
+  flex: 1 1 10rem;
+  min-height: 3.25rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.primary {
+  border: 1px solid transparent;
+  background: var(--amber);
+  color: var(--amber-ink);
+  font-weight: 680;
+}
+
+.primary[aria-pressed='true'] {
+  background: transparent;
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+
+button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.primary:focus-visible,
+.ghost:focus-visible,
+summary:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+
+.hint,
+.settings p,
+.status {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.hint,
+.status,
+.settings p {
+  margin: 0;
+}
+
+.status:empty {
+  display: none;
+}
+
+.settings {
+  background: var(--raise);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem 1rem;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 620;
+}
+
+.settings label {
+  display: grid;
+  grid-template-columns: 7rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.95rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.settings input[type='range'] {
+  width: 100%;
+  accent-color: var(--amber);
+}
+
+.settings span {
+  min-width: 7.5rem;
+  text-align: right;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings p {
+  margin-top: 0.9rem;
+}
+
+@media (max-width: 540px) {
+  .actions {
+    flex-direction: column;
+  }
+
+  .settings label {
+    grid-template-columns: 1fr auto;
+  }
+
+  .settings input[type='range'] {
+    grid-column: 1 / -1;
+  }
+}
