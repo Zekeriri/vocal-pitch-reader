@@ -1,4 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
+import { handlePharyngealSpace, stopPharyngeal } from './pharyngeal.ts'
 import { describeCents, formatNote } from './pitch.ts'
 import { canSpeak, prepareSpeech, silenceSpeech, speakNote } from './speak.ts'
 import './style.css'
@@ -20,6 +21,8 @@ const holdValue = document.querySelector<HTMLElement>('#hold-value')!
 const gateInput = document.querySelector<HTMLInputElement>('#gate')!
 const gateValue = document.querySelector<HTMLElement>('#gate-value')!
 const stage = document.querySelector<HTMLElement>('#stage')!
+const pharyngeal = document.querySelector<HTMLElement>('#pharyngeal')!
+const modeButtons = document.querySelectorAll<HTMLButtonElement>('[data-mode]')
 
 const listener = new PitchListener(renderDetection, onListenerStop)
 let speechWarned = false
@@ -54,8 +57,30 @@ window.addEventListener('keydown', (event) => {
   if (event.code !== 'Space' || event.repeat) return
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
   event.preventDefault()
+  if (!pharyngeal.hidden) {
+    handlePharyngealSpace()
+    return
+  }
   void toggleMic()
 })
+
+for (const button of modeButtons) {
+  button.addEventListener('click', () => {
+    const mode = button.dataset.mode
+    const showPharyngeal = mode === 'pharyngeal'
+    pharyngeal.hidden = !showPharyngeal
+    stage.hidden = showPharyngeal
+    for (const item of modeButtons) {
+      item.setAttribute('aria-pressed', item === button ? 'true' : 'false')
+    }
+    if (showPharyngeal) {
+      silenceSpeech()
+      listener.stop()
+    } else {
+      stopPharyngeal()
+    }
+  })
+}
 
 async function toggleMic(): Promise<void> {
   if (listener.mode !== 'idle') {
