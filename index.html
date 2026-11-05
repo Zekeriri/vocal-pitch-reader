@@ -99,6 +99,16 @@
         <h1>连准十个音</h1>
         <p class="lede">先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。</p>
       </header>
+      <div class="range-pick">
+        <label>
+          最低
+          <select id="tune-low"></select>
+        </label>
+        <label>
+          最高
+          <select id="tune-high"></select>
+        </label>
+      </div>
       <ol id="tune-dots" class="dots" aria-label="十个音的进度"></ol>
       <section class="readout ph-readout">
         <p id="tune-note" class="note is-empty">·</p>
@@ -126,7 +136,7 @@
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音准训练和咽音练习用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <p class="hint">音高朗读的试听、音准训练和咽音练习用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
         <label>
           钢琴音量
           <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />

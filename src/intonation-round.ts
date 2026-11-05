@@ -2,6 +2,8 @@ import { freqToMidi } from './pitch.ts'
 
 export const ROUND_LENGTH = 10
 export const MATCH_CENTS = 25
+export const RANGE_FLOOR = 45
+export const RANGE_CEILING = 72
 export const NOTE_LOW = 48
 export const NOTE_HIGH = 72
 
@@ -19,20 +21,33 @@ export function verdictText(verdict: Verdict): string {
   return '高了'
 }
 
-export function makeRound(count = ROUND_LENGTH, random: () => number = Math.random): number[] {
+export function makeRound(
+  count = ROUND_LENGTH,
+  random: () => number = Math.random,
+  low = NOTE_LOW,
+  high = NOTE_HIGH,
+): number[] {
+  const bottom = clampMidi(Math.min(low, high))
+  const top = clampMidi(Math.max(low, high))
   const notes: number[] = []
   for (let index = 0; index < count; index++) {
-    notes.push(pickNote(notes[index - 1] ?? null, random))
+    notes.push(pickNote(notes[index - 1] ?? null, random, bottom, top))
   }
   return notes
 }
 
-function pickNote(previous: number | null, random: () => number): number {
-  const span = NOTE_HIGH - NOTE_LOW + 1
-  let midi = NOTE_LOW + Math.floor(random() * span)
-  if (midi > NOTE_HIGH) midi = NOTE_HIGH
-  if (previous != null && midi === previous) midi = midi >= NOTE_HIGH ? midi - 1 : midi + 1
+function pickNote(previous: number | null, random: () => number, low: number, high: number): number {
+  const span = high - low + 1
+  let midi = low + Math.floor(random() * span)
+  if (midi > high) midi = high
+  if (midi < low) midi = low
+  if (previous != null && midi === previous && span > 1) midi = midi >= high ? midi - 1 : midi + 1
   return midi
+}
+
+function clampMidi(midi: number): number {
+  if (!Number.isFinite(midi)) return NOTE_LOW
+  return Math.min(RANGE_CEILING, Math.max(RANGE_FLOOR, Math.round(midi)))
 }
 
 export class MatchHold {

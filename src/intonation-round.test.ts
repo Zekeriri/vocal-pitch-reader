@@ -27,6 +27,13 @@ describe('intonation round', () => {
     }
   })
 
+  it('stays inside a range the singer chose', () => {
+    const round = makeRound(10, () => 0.9, 57, 64)
+    expect(round.every((midi) => midi >= 57 && midi <= 64)).toBe(true)
+    expect(makeRound(4, () => 0.2, 60, 60)).toEqual([60, 60, 60, 60])
+    expect(makeRound(3, () => 0, 70, 50).every((midi) => midi >= 50 && midi <= 70)).toBe(true)
+  })
+
   it('only passes after the match has stayed put', () => {
     const hold = new MatchHold()
     expect(hold.push(0, true, 280)).toBe(false)

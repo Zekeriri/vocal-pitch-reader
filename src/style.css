@@ -158,6 +158,29 @@ input {
   padding: 0;
 }
 
+.range-pick {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.range-pick label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.range-pick select {
+  min-height: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--ink);
+  padding: 0 0.9rem;
+}
+
 .settings-block {
   background: var(--raise);
   border-radius: 1rem;
@@ -406,6 +429,7 @@ button:disabled {
 .primary:focus-visible,
 .ghost:focus-visible,
 .mode:focus-visible,
+select:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--amber);
   outline-offset: 3px;

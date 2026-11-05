@@ -75,6 +75,34 @@ function silence(): void {
   playing.clear()
 }
 
+export async function startPianoNote(
+  context: AudioContext,
+  midi: number,
+  seconds: number,
+  destination: AudioNode,
+): Promise<AudioBufferSourceNode> {
+  const choice = nearestPianoSample(midi)
+  const response = await fetch(sampleUrl(choice.file))
+  if (!response.ok) throw new Error('钢琴采样没有加载出来。')
+  const buffer = await context.decodeAudioData(await response.arrayBuffer())
+  const source = context.createBufferSource()
+  const note = context.createGain()
+  source.buffer = buffer
+  source.playbackRate.value = choice.rate
+  source.connect(note)
+  note.connect(destination)
+  const now = context.currentTime
+  const release = Math.min(0.16, Math.max(0.05, seconds * 0.3))
+  const holdUntil = Math.max(now + 0.02, now + seconds - release)
+  const end = Math.max(holdUntil + 0.03, now + seconds)
+  note.gain.setValueAtTime(1, now)
+  note.gain.setValueAtTime(1, holdUntil)
+  note.gain.exponentialRampToValueAtTime(0.001, end)
+  source.start(now)
+  source.stop(end + 0.02)
+  return source
+}
+
 function playOne(engine: PianoEngine, midi: number, seconds: number): void {
   const choice = nearestPianoSample(midi)
   const buffer = engine.buffers.get(choice.file)
