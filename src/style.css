@@ -35,15 +35,125 @@ input {
   font: inherit;
 }
 
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.modes {
+  display: flex;
+  gap: 0.5rem;
+  width: min(36rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1rem 0 0;
+}
+
+.mode {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  min-height: 2.5rem;
+  padding: 0.35rem 1rem;
+  cursor: pointer;
+}
+
+.mode[aria-pressed='true'] {
+  color: var(--amber-ink);
+  background: var(--amber);
+  border-color: transparent;
+}
+
 .stage {
   width: min(36rem, calc(100% - 2rem));
-  min-height: 100dvh;
+  min-height: 0;
+  flex: 1;
   margin: 0 auto;
-  padding: 2.25rem 0 2.5rem;
+  padding: 1.5rem 0 2.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 1.35rem;
+}
+
+.stage.is-flow {
+  justify-content: flex-start;
+}
+
+.part,
+.group-label {
+  margin: 0;
+}
+
+.part {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.group-label {
+  margin-top: 0.25rem;
+  font-size: 1.05rem;
+}
+
+.group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.scale-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scale-row li {
+  min-width: 3.2rem;
+  padding: 0.45rem 0.4rem;
+  border-radius: 0.75rem;
+  background: var(--raise);
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.scale-row li.is-peak {
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
+
+.scale-row li.is-now {
+  background: var(--amber);
+  color: var(--amber-ink);
+}
+
+.scale-row li.is-reached {
+  color: var(--good);
+}
+
+.scale-row li.is-now.is-reached {
+  color: var(--amber-ink);
+}
+
+.ph-readout {
+  padding-top: 0.25rem;
+}
+
+.ph-readout .note {
+  font-size: clamp(4rem, 16vw, 6.5rem);
+}
+
+.exercise-switch {
+  width: auto;
+  margin: 0;
+  padding: 0;
 }
 
 .eyebrow {
@@ -286,6 +396,11 @@ summary {
 @media (max-width: 540px) {
   .actions {
     flex-direction: column;
+  }
+
+  .primary,
+  .ghost {
+    flex: 0 0 auto;
   }
 
   .settings label {

@@ -41,11 +41,24 @@ export function formatNote(note: string): string {
   return note.replace('#', '♯')
 }
 
-export function nameToSpeech(note: string): string {
+export function nameToMidi(note: string): number | null {
   const match = /^([A-G])(#)?(-?\d+)$/.exec(note)
+  if (!match) return null
+  const [, letter, sharp, octaveText] = match
+  const pitch = NAMES.indexOf(`${letter}${sharp ?? ''}` as (typeof NAMES)[number])
+  if (pitch < 0) return null
+  const octave = Number(octaveText)
+  if (!Number.isInteger(octave)) return null
+  return (octave + 1) * 12 + pitch
+}
+
+export function nameToSpeech(note: string): string {
+  const match = /^([A-G])(#|b)?(-?\d+)$/.exec(note)
   if (!match) return note
-  const [, letter, sharp, octave] = match
-  return sharp ? `${letter} sharp ${octave}` : `${letter} ${octave}`
+  const [, letter, accidental, octave] = match
+  if (accidental === '#') return `${letter} sharp ${octave}`
+  if (accidental === 'b') return `${letter} flat ${octave}`
+  return `${letter} ${octave}`
 }
 
 export function describeCents(cents: number): string {

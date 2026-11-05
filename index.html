@@ -5,9 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10110e" />
-    <title>音高朗读</title>
+    <title>音高练习</title>
   </head>
   <body>
+    <div class="app">
+    <nav class="modes" aria-label="练习">
+      <button class="mode" type="button" data-mode="tuner" aria-pressed="true">音高朗读</button>
+      <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
+    </nav>
     <main class="stage" id="stage" data-state="idle">
       <header>
         <p class="eyebrow">单音练习</p>
@@ -62,6 +67,46 @@
 
       <p id="status" class="status" role="status"></p>
     </main>
+
+    <main class="stage is-flow" id="pharyngeal" hidden>
+      <header>
+        <p class="eyebrow">咽音练习</p>
+        <h1 id="ph-title">咽音哼鸣练习</h1>
+        <p class="lede" id="ph-lede">正常发声时，口腔在振动。软腭有振动。</p>
+      </header>
+
+      <div class="modes exercise-switch" role="group" aria-label="练习内容">
+        <button class="mode" id="ph-hum" type="button" aria-pressed="true">哼鸣</button>
+        <button class="mode" id="ph-flex" type="button" aria-pressed="false">灵活性</button>
+      </div>
+
+      <div class="group-head">
+        <p id="ph-part" class="part">第一部分 · 上行</p>
+        <p id="ph-group" class="group-label">第 1 组</p>
+      </div>
+      <ol id="ph-notes" class="scale-row"></ol>
+
+      <section class="readout ph-readout">
+        <p id="ph-note" class="note is-empty">·</p>
+        <p id="ph-detail" class="detail">播放音阶，然后唱到最高音</p>
+        <p id="ph-highest" class="spoken" aria-live="assertive"></p>
+      </section>
+
+      <div class="meter" title="输入响度">
+        <div id="ph-level" class="meter-level"></div>
+      </div>
+
+      <div class="actions">
+        <button id="ph-play" class="primary" type="button">播放并跟唱</button>
+      </div>
+      <div class="actions">
+        <button id="ph-prev" class="ghost" type="button">上一组</button>
+        <button id="ph-next" class="ghost" type="button">下一组</button>
+      </div>
+      <p class="hint">音阶播完再开口。唱完停一下，会念出你够到的最高音。请戴耳机，免得音阶被麦克风听进去。</p>
+      <p id="ph-status" class="status" role="status"></p>
+    </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
