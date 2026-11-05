@@ -32,6 +32,25 @@ export function speakNote(note: string): boolean {
   return true
 }
 
+export function speakChinese(text: string): boolean {
+  if (!canSpeak()) return false
+  const synth = window.speechSynthesis
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'zh-CN'
+  utterance.rate = 1.04
+  const voice =
+    synth.getVoices().find((item) => item.lang === 'zh-CN') ??
+    synth.getVoices().find((item) => item.lang.toLowerCase().startsWith('zh'))
+  if (voice) utterance.voice = voice
+  try {
+    synth.cancel()
+    synth.speak(utterance)
+  } catch {
+    return false
+  }
+  return true
+}
+
 export function silenceSpeech(): void {
   if (!canSpeak()) return
   window.speechSynthesis.cancel()
