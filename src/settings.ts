@@ -1,19 +1,17 @@
-import { isTimbre, type TimbreId } from './timbre.ts'
-
 export const HOLD_KEY = 'pitch-reader-hold'
 export const GATE_KEY = 'pitch-reader-gate'
-export const TIMBRE_KEY = 'pitch-reader-timbre'
+export const NOTE_KEY = 'pitch-reader-note-seconds'
 
 export type PracticeSettings = {
   holdMs: number
   gate: number
-  timbre: TimbreId
+  noteSeconds: number
 }
 
 type SettingsInput = {
   hold: number | null
   gate: number | null
-  timbre: string | null
+  noteSeconds: number | null
 }
 
 const listeners = new Set<(settings: PracticeSettings) => void>()
@@ -24,7 +22,7 @@ export function normalizeSettings(input: SettingsInput): PracticeSettings {
   return {
     holdMs: clamp(input.hold, 200, 800, 320),
     gate: clamp(input.gate, 1, 40, 8),
-    timbre: isTimbre(input.timbre) ? input.timbre : 'piano',
+    noteSeconds: roundTenth(clamp(input.noteSeconds, 0.4, 4, 1.2)),
   }
 }
 
@@ -49,24 +47,24 @@ export function updateSettings(patch: Partial<PracticeSettings>): void {
   current = normalizeSettings({
     hold: patch.holdMs ?? current.holdMs,
     gate: patch.gate ?? current.gate,
-    timbre: patch.timbre ?? current.timbre,
+    noteSeconds: patch.noteSeconds ?? current.noteSeconds,
   })
   const store = storage()
   if (store) {
     store.setItem(HOLD_KEY, String(current.holdMs))
     store.setItem(GATE_KEY, String(current.gate))
-    store.setItem(TIMBRE_KEY, current.timbre)
+    store.setItem(NOTE_KEY, String(current.noteSeconds))
   }
   for (const listener of listeners) listener(current)
 }
 
 function readStored(): SettingsInput {
   const store = storage()
-  if (!store) return { hold: null, gate: null, timbre: null }
+  if (!store) return { hold: null, gate: null, noteSeconds: null }
   return {
     hold: numberOrNull(store.getItem(HOLD_KEY)),
     gate: numberOrNull(store.getItem(GATE_KEY)),
-    timbre: store.getItem(TIMBRE_KEY),
+    noteSeconds: numberOrNull(store.getItem(NOTE_KEY)),
   }
 }
 
@@ -87,4 +85,8 @@ function numberOrNull(value: string | null): number | null {
 function clamp(value: number | null, min: number, max: number, fallback: number): number {
   if (value == null || !Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(min, value))
+}
+
+function roundTenth(value: number): number {
+  return Math.round(value * 10) / 10
 }
