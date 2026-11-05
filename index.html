@@ -11,8 +11,9 @@
     <div class="app">
     <nav class="modes" aria-label="练习">
       <button class="mode" type="button" data-mode="tuner" aria-pressed="true">音高朗读</button>
-      <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
       <button class="mode" type="button" data-mode="intonation" aria-pressed="false">音准训练</button>
+      <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
+      <button class="mode" type="button" data-mode="settings" aria-pressed="false">设置</button>
     </nav>
     <main class="stage" id="stage" data-state="idle">
       <header>
@@ -47,24 +48,7 @@
         <button id="listen" class="primary" type="button" aria-pressed="false">开始听</button>
         <button id="self-test" class="ghost" type="button">试听 G3</button>
       </div>
-      <p class="hint">请戴耳机。念出来的声音如果回到麦克风里，会干扰下一个音。</p>
-
-      <details class="settings">
-        <summary>调节</summary>
-        <label>
-          稳住才念
-          <input id="hold" type="range" min="200" max="800" step="20" value="320" />
-          <span id="hold-value">0.32 秒</span>
-        </label>
-        <label>
-          响度门限
-          <input id="gate" type="range" min="1" max="40" step="1" value="8" />
-          <span id="gate-value">适中</span>
-        </label>
-        <p>
-          电平要越过门限上的白点，音高再稳住，才会出声。停大约半秒再唱，同一个音会再念一次。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
-        </p>
-      </details>
+      <p class="hint">请戴耳机。念出来的声音如果回到麦克风里，会干扰下一个音。稳住时间和响度门限在「设置」里，三个练习共用。</p>
 
       <p id="status" class="status" role="status"></p>
     </main>
@@ -95,6 +79,7 @@
 
       <div class="meter" title="输入响度">
         <div id="ph-level" class="meter-level"></div>
+        <div id="ph-gate" class="meter-gate"></div>
       </div>
 
       <div class="actions">
@@ -122,6 +107,7 @@
       </section>
       <div class="meter" title="输入响度">
         <div id="tune-level" class="meter-level"></div>
+        <div id="tune-gate" class="meter-gate"></div>
       </div>
       <div class="actions">
         <button id="tune-start" class="primary" type="button">开始</button>
@@ -129,6 +115,46 @@
       </div>
       <p class="hint">差在 25 音分以内算准。偏低提示低了，偏高提示高了。请戴耳机，免得弹出的音被当成你唱的。</p>
       <p id="tune-status" class="status" role="status"></p>
+    </main>
+
+    <main class="stage is-flow" id="settings" hidden>
+      <header>
+        <p class="eyebrow">设置</p>
+        <h1>练习设置</h1>
+        <p class="lede">音色、稳住时间和响度门限对音高朗读、音准训练、咽音练习都生效。</p>
+      </header>
+
+      <section class="settings-block">
+        <h2>音色</h2>
+        <p class="hint">音准训练和咽音练习弹出的音用这个声音。默认是钢琴。</p>
+        <div class="modes tone-switch" role="group" aria-label="音色">
+          <button class="mode" type="button" data-timbre="piano" aria-pressed="true">钢琴</button>
+          <button class="mode" type="button" data-timbre="sine" aria-pressed="false">正弦</button>
+          <button class="mode" type="button" data-timbre="organ" aria-pressed="false">管风琴</button>
+          <button class="mode" type="button" data-timbre="flute" aria-pressed="false">长笛</button>
+        </div>
+        <div class="actions">
+          <button id="timbre-preview" class="ghost" type="button">试听这个音色</button>
+        </div>
+      </section>
+
+      <section class="settings-block">
+        <h2>收音</h2>
+        <label>
+          稳住才算
+          <input id="hold" type="range" min="200" max="800" step="20" value="320" />
+          <span id="hold-value">0.32 秒</span>
+        </label>
+        <label>
+          响度门限
+          <input id="gate" type="range" min="1" max="40" step="1" value="8" />
+          <span id="gate-value">适中</span>
+        </label>
+        <p>
+          电平要越过白点才收。音高朗读稳住这段时间才念出音名。音准训练唱准并稳住这段时间才过。三个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+        </p>
+      </section>
+      <p id="settings-status" class="status" role="status"></p>
     </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
