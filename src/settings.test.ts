@@ -25,13 +25,18 @@ describe('practice settings', () => {
 })
 
 describe('timbres', () => {
-  it('gives the piano a hammer and several decaying partials', () => {
+  it('gives the piano a long string ring and a short hammer', () => {
     const piano = timbreSpec('piano')
     const sine = timbreSpec('sine')
     expect(piano.partials.length).toBeGreaterThan(3)
-    expect(piano.noise).toBeGreaterThan(0)
+    expect(piano.hammer).toBe(true)
+    expect(piano.soften).toBe(true)
+    expect(piano.seconds).toBeGreaterThan(1.4)
+    expect(piano.partials[0].body).toBeGreaterThan(piano.partials[3].body)
     expect(piano.partials[1].decay).toBeLessThan(piano.partials[0].decay)
+    expect(piano.partials[0].detuneCents).toBeGreaterThan(0)
     expect(sine.partials).toHaveLength(1)
     expect(sine.noise).toBe(0)
+    expect(sine.seconds).toBeLessThan(0.6)
   })
 })
