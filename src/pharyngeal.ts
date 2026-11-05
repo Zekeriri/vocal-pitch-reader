@@ -10,6 +10,7 @@ import {
   type PracticeExercise,
   type PracticeStep,
 } from './scales.ts'
+import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakNote } from './speak.ts'
 
 const EXERCISE_KEY = 'pitch-reader-ph-exercise'
@@ -26,6 +27,7 @@ const noteEl = document.querySelector<HTMLElement>('#ph-note')!
 const detailEl = document.querySelector<HTMLElement>('#ph-detail')!
 const highestEl = document.querySelector<HTMLElement>('#ph-highest')!
 const levelEl = document.querySelector<HTMLElement>('#ph-level')!
+const gateMarkEl = document.querySelector<HTMLElement>('#ph-gate')!
 const playButton = document.querySelector<HTMLButtonElement>('#ph-play')!
 const prevButton = document.querySelector<HTMLButtonElement>('#ph-prev')!
 const nextButton = document.querySelector<HTMLButtonElement>('#ph-next')!
@@ -72,7 +74,11 @@ const listener = new PitchListener((detection) => {
   if (phase === 'singing') finish(false)
 })
 
-listener.rmsMin = 0.006
+subscribeSettings((settings) => {
+  listener.rmsMin = gateToRms(settings.gate)
+  listener.setHoldMs(settings.holdMs)
+  gateMarkEl.style.left = `${gateMarkRatio(listener.rmsMin) * 100}%`
+})
 
 humButton.addEventListener('click', () => choose('hum'))
 flexButton.addEventListener('click', () => choose('flex'))

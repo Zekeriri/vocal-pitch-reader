@@ -151,10 +151,52 @@ input {
   font-size: clamp(4rem, 16vw, 6.5rem);
 }
 
-.exercise-switch {
+.exercise-switch,
+.tone-switch {
   width: auto;
   margin: 0;
   padding: 0;
+}
+
+.settings-block {
+  background: var(--raise);
+  border-radius: 1rem;
+  padding: 1rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.settings-block h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 640;
+}
+
+.settings-block .hint,
+.settings-block p {
+  margin: 0;
+}
+
+.settings-block label {
+  display: grid;
+  grid-template-columns: 7rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.settings-block input[type='range'] {
+  width: 100%;
+  accent-color: var(--amber);
+}
+
+.settings-block span {
+  min-width: 7.5rem;
+  text-align: right;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .dots {
@@ -363,14 +405,14 @@ button:disabled {
 
 .primary:focus-visible,
 .ghost:focus-visible,
-summary:focus-visible,
+.mode:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--amber);
   outline-offset: 3px;
 }
 
 .hint,
-.settings p,
+.settings-block p,
 .status {
   color: var(--muted);
   font-size: 0.92rem;
@@ -378,50 +420,12 @@ input:focus-visible {
 }
 
 .hint,
-.status,
-.settings p {
+.status {
   margin: 0;
 }
 
 .status:empty {
   display: none;
-}
-
-.settings {
-  background: var(--raise);
-  border-radius: 1rem;
-  padding: 0.85rem 1rem 1rem;
-}
-
-summary {
-  cursor: pointer;
-  font-weight: 620;
-}
-
-.settings label {
-  display: grid;
-  grid-template-columns: 7rem 1fr auto;
-  gap: 0.75rem;
-  align-items: center;
-  margin-top: 0.95rem;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.settings input[type='range'] {
-  width: 100%;
-  accent-color: var(--amber);
-}
-
-.settings span {
-  min-width: 7.5rem;
-  text-align: right;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.settings p {
-  margin-top: 0.9rem;
 }
 
 @media (max-width: 540px) {
@@ -434,11 +438,20 @@ summary {
     flex: 0 0 auto;
   }
 
-  .settings label {
+  .settings-block label {
     grid-template-columns: 1fr auto;
   }
 
-  .settings input[type='range'] {
+  .settings-block input[type='range'] {
     grid-column: 1 / -1;
+  }
+
+  .app > .modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app > .modes .mode {
+    padding: 0.35rem 0.6rem;
   }
 }

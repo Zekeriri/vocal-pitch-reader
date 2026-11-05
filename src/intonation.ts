@@ -8,9 +8,9 @@ import {
 } from './intonation-round.ts'
 import { formatNote, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
+import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
-const HOLD_MS = 280
 const PROMPT_GAP_MS = 1500
 
 const root = document.querySelector<HTMLElement>('#intonation')!
@@ -19,6 +19,7 @@ const detailEl = document.querySelector<HTMLElement>('#tune-detail')!
 const extraEl = document.querySelector<HTMLElement>('#tune-extra')!
 const dotsEl = document.querySelector<HTMLOListElement>('#tune-dots')!
 const levelEl = document.querySelector<HTMLElement>('#tune-level')!
+const gateMarkEl = document.querySelector<HTMLElement>('#tune-gate')!
 const startButton = document.querySelector<HTMLButtonElement>('#tune-start')!
 const replayButton = document.querySelector<HTMLButtonElement>('#tune-replay')!
 const statusEl = document.querySelector<HTMLElement>('#tune-status')!
@@ -47,14 +48,18 @@ const listener = new PitchListener((detection) => {
   detailEl.textContent = sung ? `唱成了 ${sung}` : '再稳一下'
   extraEl.textContent = verdict === 'match' ? '稳住就过' : verdictText(verdict)
   if (verdict !== 'match') prompt(verdictText(verdict))
-  if (hold.push(performance.now(), verdict === 'match', HOLD_MS)) advance()
+  if (hold.push(performance.now(), verdict === 'match', readSettings().holdMs)) advance()
 }, () => {
   if (expectStop || phase !== 'listening') return
   phase = 'idle'
   render()
 })
 
-listener.rmsMin = 0.008
+subscribeSettings((settings) => {
+  listener.rmsMin = gateToRms(settings.gate)
+  listener.setHoldMs(settings.holdMs)
+  gateMarkEl.style.left = `${gateMarkRatio(listener.rmsMin) * 100}%`
+})
 
 startButton.addEventListener('click', () => {
   if (phase === 'idle' || phase === 'passed') void begin()

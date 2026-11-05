@@ -2,11 +2,10 @@ import { PitchListener, micErrorMessage } from './audio.ts'
 import { handleIntonationSpace, stopIntonation } from './intonation.ts'
 import { handlePharyngealSpace, stopPharyngeal } from './pharyngeal.ts'
 import { describeCents, formatNote } from './pitch.ts'
+import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
+import { stopSettingsPreview } from './settings-panel.ts'
 import { canSpeak, prepareSpeech, silenceSpeech, speakNote } from './speak.ts'
 import './style.css'
-
-const HOLD_KEY = 'pitch-reader-hold'
-const GATE_KEY = 'pitch-reader-gate'
 
 const noteEl = document.querySelector<HTMLElement>('#note')!
 const detailEl = document.querySelector<HTMLElement>('#detail')!
@@ -17,13 +16,10 @@ const levelEl = document.querySelector<HTMLElement>('#level')!
 const gateMarkEl = document.querySelector<HTMLElement>('#gate-mark')!
 const listenButton = document.querySelector<HTMLButtonElement>('#listen')!
 const testButton = document.querySelector<HTMLButtonElement>('#self-test')!
-const holdInput = document.querySelector<HTMLInputElement>('#hold')!
-const holdValue = document.querySelector<HTMLElement>('#hold-value')!
-const gateInput = document.querySelector<HTMLInputElement>('#gate')!
-const gateValue = document.querySelector<HTMLElement>('#gate-value')!
 const stage = document.querySelector<HTMLElement>('#stage')!
 const pharyngeal = document.querySelector<HTMLElement>('#pharyngeal')!
 const intonation = document.querySelector<HTMLElement>('#intonation')!
+const settingsPanel = document.querySelector<HTMLElement>('#settings')!
 const modeButtons = document.querySelectorAll<HTMLButtonElement>('[data-mode]')
 
 const listener = new PitchListener(renderDetection, onListenerStop)
@@ -31,8 +27,11 @@ let speechWarned = false
 let clearTimer = 0
 
 prepareSpeech()
-restoreSettings()
-syncGateMark()
+subscribeSettings((settings) => {
+  listener.setHoldMs(settings.holdMs)
+  listener.rmsMin = gateToRms(settings.gate)
+  syncGateMark()
+})
 renderIdle()
 
 listenButton.addEventListener('click', () => {
@@ -41,18 +40,6 @@ listenButton.addEventListener('click', () => {
 
 testButton.addEventListener('click', () => {
   void runTest()
-})
-
-holdInput.addEventListener('input', () => {
-  const ms = Number(holdInput.value)
-  listener.setHoldMs(ms)
-  holdValue.textContent = `${(ms / 1000).toFixed(2)} 秒`
-  localStorage.setItem(HOLD_KEY, String(ms))
-})
-
-gateInput.addEventListener('input', () => {
-  applyGate(Number(gateInput.value))
-  localStorage.setItem(GATE_KEY, gateInput.value)
 })
 
 window.addEventListener('keydown', (event) => {
@@ -67,6 +54,7 @@ window.addEventListener('keydown', (event) => {
     handleIntonationSpace()
     return
   }
+  if (!settingsPanel.hidden) return
   void toggleMic()
 })
 
@@ -76,6 +64,7 @@ for (const button of modeButtons) {
     stage.hidden = mode !== 'tuner'
     pharyngeal.hidden = mode !== 'pharyngeal'
     intonation.hidden = mode !== 'intonation'
+    settingsPanel.hidden = mode !== 'settings'
     for (const item of modeButtons) {
       item.setAttribute('aria-pressed', item === button ? 'true' : 'false')
     }
@@ -83,6 +72,7 @@ for (const button of modeButtons) {
     if (mode !== 'tuner') listener.stop()
     if (mode !== 'pharyngeal') stopPharyngeal()
     if (mode !== 'intonation') stopIntonation()
+    if (mode !== 'settings') stopSettingsPreview()
   })
 }
 
@@ -200,7 +190,7 @@ function renderIdle(): void {
 }
 
 function resetControls(): void {
-  listener.setHoldMs(Number(holdInput.value))
+  listener.setHoldMs(readSettings().holdMs)
   listenButton.disabled = false
   testButton.disabled = false
   listenButton.textContent = '开始听'
@@ -235,28 +225,6 @@ function hideMark(): void {
   markEl.hidden = true
 }
 
-function restoreSettings(): void {
-  const hold = clamp(Number(localStorage.getItem(HOLD_KEY)), 200, 800, 320)
-  const gate = clamp(Number(localStorage.getItem(GATE_KEY)), 1, 40, 8)
-  holdInput.value = String(hold)
-  holdValue.textContent = `${(hold / 1000).toFixed(2)} 秒`
-  listener.setHoldMs(hold)
-  gateInput.value = String(gate)
-  applyGate(gate)
-}
-
-function applyGate(value: number): void {
-  listener.rmsMin = value / 1000
-  gateValue.textContent = value <= 5 ? '灵敏' : value <= 14 ? '适中' : '只收较响的声音'
-  syncGateMark()
-}
-
 function syncGateMark(): void {
-  const position = Math.min(1, Math.sqrt(listener.rmsMin) / 0.45)
-  gateMarkEl.style.left = `${position * 100}%`
-}
-
-function clamp(value: number, min: number, max: number, fallback: number): number {
-  if (!Number.isFinite(value)) return fallback
-  return Math.min(max, Math.max(min, value))
+  gateMarkEl.style.left = `${gateMarkRatio(listener.rmsMin) * 100}%`
 }
