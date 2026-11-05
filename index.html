@@ -12,6 +12,7 @@
     <nav class="modes" aria-label="练习">
       <button class="mode" type="button" data-mode="tuner" aria-pressed="true">音高朗读</button>
       <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
+      <button class="mode" type="button" data-mode="intonation" aria-pressed="false">音准训练</button>
     </nav>
     <main class="stage" id="stage" data-state="idle">
       <header>
@@ -105,6 +106,29 @@
       </div>
       <p class="hint">音阶播完再开口。唱完停一下，会念出你够到的最高音。请戴耳机，免得音阶被麦克风听进去。</p>
       <p id="ph-status" class="status" role="status"></p>
+    </main>
+
+    <main class="stage is-flow" id="intonation" hidden>
+      <header>
+        <p class="eyebrow">音准训练</p>
+        <h1>连准十个音</h1>
+        <p class="lede">先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。</p>
+      </header>
+      <ol id="tune-dots" class="dots" aria-label="十个音的进度"></ol>
+      <section class="readout ph-readout">
+        <p id="tune-note" class="note is-empty">·</p>
+        <p id="tune-detail" class="detail">点开始，听第一个音</p>
+        <p id="tune-extra" class="spoken" aria-live="assertive"></p>
+      </section>
+      <div class="meter" title="输入响度">
+        <div id="tune-level" class="meter-level"></div>
+      </div>
+      <div class="actions">
+        <button id="tune-start" class="primary" type="button">开始</button>
+        <button id="tune-replay" class="ghost" type="button">再听一次</button>
+      </div>
+      <p class="hint">差在 25 音分以内算准。偏低提示低了，偏高提示高了。请戴耳机，免得弹出的音被当成你唱的。</p>
+      <p id="tune-status" class="status" role="status"></p>
     </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
