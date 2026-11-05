@@ -3,18 +3,20 @@ import { gateMarkRatio, gateToRms, normalizeSettings } from './settings.ts'
 
 describe('practice settings', () => {
   it('defaults the hold, the gate, and how long each note plays', () => {
-    expect(normalizeSettings({ hold: null, gate: null, noteSeconds: null })).toEqual({
+    expect(normalizeSettings({ hold: null, gate: null, noteSeconds: null, pianoVolume: null })).toEqual({
       holdMs: 320,
       gate: 8,
       noteSeconds: 1.2,
+      pianoVolume: 80,
     })
-    expect(normalizeSettings({ hold: 10, gate: 90, noteSeconds: 9 })).toEqual({
+    expect(normalizeSettings({ hold: 10, gate: 90, noteSeconds: 9, pianoVolume: 140 })).toEqual({
       holdMs: 200,
       gate: 40,
       noteSeconds: 4,
+      pianoVolume: 100,
     })
-    expect(normalizeSettings({ hold: 500, gate: 3, noteSeconds: 0.1 }).noteSeconds).toBe(0.4)
-    expect(normalizeSettings({ hold: 500, gate: 3, noteSeconds: 2.26 }).noteSeconds).toBe(2.3)
+    expect(normalizeSettings({ hold: 500, gate: 3, noteSeconds: 0.1, pianoVolume: -5 }).noteSeconds).toBe(0.4)
+    expect(normalizeSettings({ hold: 500, gate: 3, noteSeconds: 2.26, pianoVolume: 35 }).pianoVolume).toBe(35)
   })
 
   it('keeps the loudness gate on the same scale as the meter', () => {

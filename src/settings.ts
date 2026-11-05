@@ -1,17 +1,20 @@
 export const HOLD_KEY = 'pitch-reader-hold'
 export const GATE_KEY = 'pitch-reader-gate'
 export const NOTE_KEY = 'pitch-reader-note-seconds'
+export const VOLUME_KEY = 'pitch-reader-piano-volume'
 
 export type PracticeSettings = {
   holdMs: number
   gate: number
   noteSeconds: number
+  pianoVolume: number
 }
 
 type SettingsInput = {
   hold: number | null
   gate: number | null
   noteSeconds: number | null
+  pianoVolume: number | null
 }
 
 const listeners = new Set<(settings: PracticeSettings) => void>()
@@ -23,6 +26,7 @@ export function normalizeSettings(input: SettingsInput): PracticeSettings {
     holdMs: clamp(input.hold, 200, 800, 320),
     gate: clamp(input.gate, 1, 40, 8),
     noteSeconds: roundTenth(clamp(input.noteSeconds, 0.4, 4, 1.2)),
+    pianoVolume: Math.round(clamp(input.pianoVolume, 0, 100, 80)),
   }
 }
 
@@ -48,23 +52,26 @@ export function updateSettings(patch: Partial<PracticeSettings>): void {
     hold: patch.holdMs ?? current.holdMs,
     gate: patch.gate ?? current.gate,
     noteSeconds: patch.noteSeconds ?? current.noteSeconds,
+    pianoVolume: patch.pianoVolume ?? current.pianoVolume,
   })
   const store = storage()
   if (store) {
     store.setItem(HOLD_KEY, String(current.holdMs))
     store.setItem(GATE_KEY, String(current.gate))
     store.setItem(NOTE_KEY, String(current.noteSeconds))
+    store.setItem(VOLUME_KEY, String(current.pianoVolume))
   }
   for (const listener of listeners) listener(current)
 }
 
 function readStored(): SettingsInput {
   const store = storage()
-  if (!store) return { hold: null, gate: null, noteSeconds: null }
+  if (!store) return { hold: null, gate: null, noteSeconds: null, pianoVolume: null }
   return {
     hold: numberOrNull(store.getItem(HOLD_KEY)),
     gate: numberOrNull(store.getItem(GATE_KEY)),
     noteSeconds: numberOrNull(store.getItem(NOTE_KEY)),
+    pianoVolume: numberOrNull(store.getItem(VOLUME_KEY)),
   }
 }
 

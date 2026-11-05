@@ -7,6 +7,8 @@ const gateInput = document.querySelector<HTMLInputElement>('#gate')!
 const gateValue = document.querySelector<HTMLElement>('#gate-value')!
 const noteInput = document.querySelector<HTMLInputElement>('#note-length')!
 const noteValue = document.querySelector<HTMLElement>('#note-length-value')!
+const volumeInput = document.querySelector<HTMLInputElement>('#piano-volume')!
+const volumeValue = document.querySelector<HTMLElement>('#piano-volume-value')!
 const previewButton = document.querySelector<HTMLButtonElement>('#piano-preview')!
 const statusEl = document.querySelector<HTMLElement>('#settings-status')!
 
@@ -22,6 +24,10 @@ gateInput.addEventListener('input', () => {
 
 noteInput.addEventListener('input', () => {
   updateSettings({ noteSeconds: Number(noteInput.value) })
+})
+
+volumeInput.addEventListener('input', () => {
+  updateSettings({ pianoVolume: Number(volumeInput.value) })
 })
 
 previewButton.addEventListener('click', () => {
@@ -66,6 +72,8 @@ function paint(settings: PracticeSettings): void {
   gateValue.textContent = gateLabel(settings.gate)
   noteInput.value = String(settings.noteSeconds)
   noteValue.textContent = `${settings.noteSeconds.toFixed(1)} 秒`
+  volumeInput.value = String(settings.pianoVolume)
+  volumeValue.textContent = `${settings.pianoVolume}%`
 }
 
 function gateLabel(gate: number): string {
