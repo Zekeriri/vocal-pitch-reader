@@ -121,20 +121,19 @@
       <header>
         <p class="eyebrow">设置</p>
         <h1>练习设置</h1>
-        <p class="lede">音色、稳住时间和响度门限对音高朗读、音准训练、咽音练习都生效。</p>
+        <p class="lede">弹出的音都是钢琴。每个音响多久、稳住时间和响度门限，在这里一起调。</p>
       </header>
 
       <section class="settings-block">
-        <h2>音色</h2>
-        <p class="hint">音准训练和咽音练习弹出的音用这个声音。默认是钢琴。</p>
-        <div class="modes tone-switch" role="group" aria-label="音色">
-          <button class="mode" type="button" data-timbre="piano" aria-pressed="true">钢琴</button>
-          <button class="mode" type="button" data-timbre="sine" aria-pressed="false">正弦</button>
-          <button class="mode" type="button" data-timbre="organ" aria-pressed="false">管风琴</button>
-          <button class="mode" type="button" data-timbre="flute" aria-pressed="false">长笛</button>
-        </div>
+        <h2>钢琴</h2>
+        <p class="hint">音准训练和咽音练习弹出的都是这个钢琴。拖动下面的滑块，改变每个音的长度。</p>
+        <label>
+          每个音
+          <input id="note-length" type="range" min="0.4" max="4" step="0.1" value="1.2" />
+          <span id="note-length-value">1.2 秒</span>
+        </label>
         <div class="actions">
-          <button id="timbre-preview" class="ghost" type="button">试听这个音色</button>
+          <button id="piano-preview" class="ghost" type="button">试听钢琴</button>
         </div>
       </section>
 

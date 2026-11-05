@@ -1,14 +1,14 @@
 import { playMidiSequence } from './scale-player.ts'
 import { subscribeSettings, updateSettings, type PracticeSettings } from './settings.ts'
-import { type TimbreId } from './timbre.ts'
 
 const holdInput = document.querySelector<HTMLInputElement>('#hold')!
 const holdValue = document.querySelector<HTMLElement>('#hold-value')!
 const gateInput = document.querySelector<HTMLInputElement>('#gate')!
 const gateValue = document.querySelector<HTMLElement>('#gate-value')!
-const previewButton = document.querySelector<HTMLButtonElement>('#timbre-preview')!
+const noteInput = document.querySelector<HTMLInputElement>('#note-length')!
+const noteValue = document.querySelector<HTMLElement>('#note-length-value')!
+const previewButton = document.querySelector<HTMLButtonElement>('#piano-preview')!
 const statusEl = document.querySelector<HTMLElement>('#settings-status')!
-const timbreButtons = document.querySelectorAll<HTMLButtonElement>('[data-timbre]')
 
 let preview: AbortController | null = null
 
@@ -20,15 +20,12 @@ gateInput.addEventListener('input', () => {
   updateSettings({ gate: Number(gateInput.value) })
 })
 
-for (const button of timbreButtons) {
-  button.addEventListener('click', () => {
-    const timbre = button.dataset.timbre
-    if (timbre) updateSettings({ timbre: timbre as TimbreId })
-  })
-}
+noteInput.addEventListener('input', () => {
+  updateSettings({ noteSeconds: Number(noteInput.value) })
+})
 
 previewButton.addEventListener('click', () => {
-  void previewTimbre()
+  void previewPiano()
 })
 
 subscribeSettings(paint)
@@ -37,10 +34,10 @@ export function stopSettingsPreview(): void {
   preview?.abort()
   preview = null
   previewButton.disabled = false
-  previewButton.textContent = '试听这个音色'
+  previewButton.textContent = '试听钢琴'
 }
 
-async function previewTimbre(): Promise<void> {
+async function previewPiano(): Promise<void> {
   preview?.abort()
   const controller = new AbortController()
   preview = controller
@@ -51,13 +48,13 @@ async function previewTimbre(): Promise<void> {
     await playMidiSequence([60, 64, 67], () => {}, controller.signal)
   } catch (error) {
     if (!controller.signal.aborted) {
-      statusEl.textContent = error instanceof Error ? error.message : '这个音色没有播出来。'
+      statusEl.textContent = error instanceof Error ? error.message : '钢琴没有播出来。'
     }
   } finally {
     if (preview === controller) {
       preview = null
       previewButton.disabled = false
-      previewButton.textContent = '试听这个音色'
+      previewButton.textContent = '试听钢琴'
     }
   }
 }
@@ -67,9 +64,8 @@ function paint(settings: PracticeSettings): void {
   holdValue.textContent = `${(settings.holdMs / 1000).toFixed(2)} 秒`
   gateInput.value = String(settings.gate)
   gateValue.textContent = gateLabel(settings.gate)
-  for (const button of timbreButtons) {
-    button.setAttribute('aria-pressed', button.dataset.timbre === settings.timbre ? 'true' : 'false')
-  }
+  noteInput.value = String(settings.noteSeconds)
+  noteValue.textContent = `${settings.noteSeconds.toFixed(1)} 秒`
 }
 
 function gateLabel(gate: number): string {
