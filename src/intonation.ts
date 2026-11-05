@@ -3,6 +3,10 @@ import {
   judgePitch,
   makeRound,
   MatchHold,
+  NOTE_HIGH,
+  NOTE_LOW,
+  RANGE_CEILING,
+  RANGE_FLOOR,
   ROUND_LENGTH,
   verdictText,
 } from './intonation-round.ts'
@@ -22,7 +26,12 @@ const levelEl = document.querySelector<HTMLElement>('#tune-level')!
 const gateMarkEl = document.querySelector<HTMLElement>('#tune-gate')!
 const startButton = document.querySelector<HTMLButtonElement>('#tune-start')!
 const replayButton = document.querySelector<HTMLButtonElement>('#tune-replay')!
+const lowSelect = document.querySelector<HTMLSelectElement>('#tune-low')!
+const highSelect = document.querySelector<HTMLSelectElement>('#tune-high')!
 const statusEl = document.querySelector<HTMLElement>('#tune-status')!
+
+const LOW_KEY = 'pitch-reader-tune-low'
+const HIGH_KEY = 'pitch-reader-tune-high'
 
 type Phase = 'idle' | 'playing' | 'listening' | 'passed'
 
@@ -68,7 +77,10 @@ startButton.addEventListener('click', () => {
 replayButton.addEventListener('click', () => {
   if (phase === 'listening' || phase === 'playing') void present()
 })
+lowSelect.addEventListener('change', () => saveRange(true))
+highSelect.addEventListener('change', () => saveRange(false))
 
+fillRangeSelects()
 render()
 
 export function stopIntonation(): void {
@@ -88,14 +100,18 @@ export function handleIntonationSpace(): void {
 }
 
 async function begin(): Promise<void> {
-  targets = makeRound()
+  const [low, high] = chosenRange()
+  targets = makeRound(ROUND_LENGTH, Math.random, low, high)
   index = 0
   statusEl.textContent = ''
   await present()
 }
 
 async function present(): Promise<void> {
-  if (targets.length !== ROUND_LENGTH) targets = makeRound()
+  if (targets.length !== ROUND_LENGTH) {
+    const [low, high] = chosenRange()
+    targets = makeRound(ROUND_LENGTH, Math.random, low, high)
+  }
   const run = ++token
   abort?.abort()
   const controller = new AbortController()
@@ -177,13 +193,16 @@ function render(): void {
   const busy = phase === 'playing' || phase === 'listening'
   startButton.disabled = phase === 'playing'
   replayButton.disabled = !busy
+  lowSelect.disabled = busy
+  highSelect.disabled = busy
   startButton.textContent =
     phase === 'playing' ? '正在播放…' : phase === 'listening' ? '结束' : phase === 'passed' ? '再来一轮' : '开始'
   paintDots()
   if (phase === 'idle') {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = '点开始，听第一个音'
+    const [low, high] = chosenRange()
+    detailEl.textContent = `从 ${noteName(low)} 到 ${noteName(high)}，点开始`
     extraEl.textContent = ''
     renderMeter(0)
   } else if (phase === 'playing') {
@@ -215,6 +234,53 @@ function paintDots(): void {
       return item
     }),
   )
+}
+
+function fillRangeSelects(): void {
+  const options = Array.from({ length: RANGE_CEILING - RANGE_FLOOR + 1 }, (_, index) => {
+    const midi = RANGE_FLOOR + index
+    const option = document.createElement('option')
+    option.value = String(midi)
+    option.textContent = noteName(midi)
+    return option
+  })
+  lowSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
+  highSelect.replaceChildren(...options)
+  const [low, high] = chosenRange()
+  lowSelect.value = String(low)
+  highSelect.value = String(high)
+}
+
+function chosenRange(): [number, number] {
+  const low = storedMidi(LOW_KEY, NOTE_LOW)
+  const high = storedMidi(HIGH_KEY, NOTE_HIGH)
+  return low <= high ? [low, high] : [high, low]
+}
+
+function saveRange(lowChanged: boolean): void {
+  let low = Number(lowSelect.value)
+  let high = Number(highSelect.value)
+  if (low > high) {
+    if (lowChanged) high = low
+    else low = high
+    lowSelect.value = String(low)
+    highSelect.value = String(high)
+  }
+  localStorage.setItem(LOW_KEY, String(low))
+  localStorage.setItem(HIGH_KEY, String(high))
+  if (phase === 'idle' || phase === 'passed') render()
+}
+
+function storedMidi(key: string, fallback: number): number {
+  const raw = localStorage.getItem(key)
+  if (raw == null || raw === '') return fallback
+  const value = Number(raw)
+  if (!Number.isInteger(value)) return fallback
+  return Math.min(RANGE_CEILING, Math.max(RANGE_FLOOR, value))
+}
+
+function noteName(midi: number): string {
+  return formatNote(midiToName(midi))
 }
 
 function renderMeter(rms: number): void {

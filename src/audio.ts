@@ -1,4 +1,6 @@
 import { MedianPitch, NoteLock, PitchDetector, type LockResult } from './pitch.ts'
+import { startPianoNote } from './scale-player.ts'
+import { readSettings } from './settings.ts'
 
 export type ListenMode = 'idle' | 'mic' | 'test'
 
@@ -23,7 +25,7 @@ export class PitchListener {
   private stream: MediaStream | null = null
   private worklet: AudioWorkletNode | null = null
   private monitor: GainNode | null = null
-  private oscillator: OscillatorNode | null = null
+  private tone: AudioBufferSourceNode | null = null
   private detector = new PitchDetector()
   private median = new MedianPitch(3)
   private lock = new NoteLock()
@@ -88,7 +90,7 @@ export class PitchListener {
     }
   }
 
-  async startTest(freq = 196): Promise<boolean> {
+  async startTest(midi = 55): Promise<boolean> {
     this.token++
     this.teardown()
     const token = this.token
@@ -98,19 +100,23 @@ export class PitchListener {
       await context.resume()
       await this.attach(context, token)
       if (token !== this.token || !this.worklet) return false
-
-      const oscillator = context.createOscillator()
-      oscillator.type = 'sine'
-      oscillator.frequency.value = freq
-      oscillator.connect(this.worklet)
-      oscillator.start()
-      this.oscillator = oscillator
-      if (this.monitor) this.monitor.gain.value = 0.12
+      const seconds = Math.max(0.4, readSettings().noteSeconds)
+      const tone = await startPianoNote(context, midi, seconds, this.worklet)
+      if (token !== this.token) {
+        try {
+          tone.stop()
+        } catch {
+          // already stopped
+        }
+        return false
+      }
+      this.tone = tone
+      if (this.monitor) this.monitor.gain.value = readSettings().pianoVolume / 100
       this.mode = 'test'
       this.testTimer = window.setTimeout(() => {
         if (this.token !== token) return
         this.stop()
-      }, 2200)
+      }, seconds * 1000 + 180)
       return true
     } catch (error) {
       if (token === this.token) this.teardown()
@@ -182,14 +188,14 @@ export class PitchListener {
   private teardown(): void {
     window.clearTimeout(this.testTimer)
     this.testTimer = 0
-    if (this.oscillator) {
+    if (this.tone) {
       try {
-        this.oscillator.stop()
+        this.tone.stop()
       } catch {
         // already stopped
       }
-      this.oscillator.disconnect()
-      this.oscillator = null
+      this.tone.disconnect()
+      this.tone = null
     }
     this.worklet?.disconnect()
     this.worklet = null

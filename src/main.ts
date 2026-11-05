@@ -107,7 +107,7 @@ async function runTest(): Promise<void> {
   testButton.disabled = true
   testButton.textContent = '正在试听…'
   try {
-    const started = await listener.startTest(196)
+    const started = await listener.startTest()
     if (!started) {
       renderIdle()
       return
