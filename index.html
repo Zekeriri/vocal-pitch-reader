@@ -121,12 +121,17 @@
       <header>
         <p class="eyebrow">设置</p>
         <h1>练习设置</h1>
-        <p class="lede">弹出的音都是钢琴。每个音响多久、稳住时间和响度门限，在这里一起调。</p>
+        <p class="lede">弹出的音都是同一架钢琴。音量、每个音响多久、稳住时间和响度门限，在这里一起调。</p>
       </header>
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音准训练和咽音练习弹出的都是这个钢琴。拖动下面的滑块，改变每个音的长度。</p>
+        <p class="hint">音准训练和咽音练习用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <label>
+          钢琴音量
+          <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />
+          <span id="piano-volume-value">80%</span>
+        </label>
         <label>
           每个音
           <input id="note-length" type="range" min="0.4" max="4" step="0.1" value="1.2" />

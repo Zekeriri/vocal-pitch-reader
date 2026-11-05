@@ -1,0 +1,9 @@
+Salamander Grand Piano
+
+Author: Alexander Holm
+License: Creative Commons Attribution 3.0 Unported
+https://creativecommons.org/licenses/by/3.0/
+Source: https://archive.org/details/SalamanderGrandPianoV3
+
+The mp3 files in this folder are a short edit of the velocity 8 layer,
+trimmed for this practice app. Please credit Alexander Holm if you reuse them.
