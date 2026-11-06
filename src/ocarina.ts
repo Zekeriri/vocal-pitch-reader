@@ -1,5 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { hearSongNote, songById } from './ocarina-songs.ts'
+import { clampPhraseShift, hearSongNote, phraseShiftBounds, songById, transposePhrase } from './ocarina-songs.ts'
 import { MatchHold } from './intonation-round.ts'
 import { formatNote, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
@@ -7,6 +7,8 @@ import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './set
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SONG_KEY = 'pitch-reader-ocarina'
+const SHIFT_KEY = 'pitch-reader-ocarina-shift'
+const DEFAULT_SHIFT = -12
 const PHRASE_SECONDS = 0.62
 
 const root = document.querySelector<HTMLElement>('#ocarina')!
@@ -20,10 +22,13 @@ const playButton = document.querySelector<HTMLButtonElement>('#ocarina-play')!
 const replayButton = document.querySelector<HTMLButtonElement>('#ocarina-replay')!
 const statusEl = document.querySelector<HTMLElement>('#ocarina-status')!
 const songButtons = document.querySelectorAll<HTMLButtonElement>('[data-song]')
+const shiftSelect = document.querySelector<HTMLSelectElement>('#ocarina-shift')!
 
 type Phase = 'idle' | 'playing' | 'singing' | 'learned'
 
 let song = songById(localStorage.getItem(SONG_KEY) ?? 'lullaby')
+let shift = readShift()
+let shiftSong = ''
 let phase: Phase = 'idle'
 let step = 0
 let playIndex = -1
@@ -42,13 +47,13 @@ const listener = new PitchListener((detection) => {
     freshStart = false
     return
   }
-  const hear = hearSongNote(freq, song.notes[step])
+  const hear = hearSongNote(freq, phrase()[step])
   const now = performance.now()
   const holdMs = readSettings().holdMs
   if (hear === 'match') {
     missed.reset()
     freshStart = false
-    noteEl.textContent = noteName(song.notes[step])
+    noteEl.textContent = noteName(phrase()[step])
     noteEl.className = 'note is-tuned'
     detailEl.textContent = '稳住'
     extraEl.textContent = ''
@@ -75,7 +80,7 @@ const listener = new PitchListener((detection) => {
   missed.reset()
   noteEl.textContent = hear === 'low' ? '低了' : '高了'
   noteEl.className = 'note is-stable'
-  detailEl.textContent = `这个音是 ${noteName(song.notes[step])}`
+  detailEl.textContent = `这个音是 ${noteName(phrase()[step])}`
   extraEl.textContent = hear === 'low' ? '低了' : '高了'
 }, () => {
   if (expectStop || phase !== 'singing') return
@@ -102,6 +107,12 @@ for (const button of songButtons) {
     choose(button.dataset.song ?? 'lullaby')
   })
 }
+shiftSelect.addEventListener('change', () => {
+  if (phase === 'playing' || phase === 'singing') return
+  shift = clampPhraseShift(song.notes, Number(shiftSelect.value))
+  localStorage.setItem(SHIFT_KEY, String(shift))
+  render()
+})
 
 render()
 
@@ -124,7 +135,9 @@ export function handleOcarinaSpace(): void {
 
 function choose(id: string): void {
   song = songById(id)
+  shift = clampPhraseShift(song.notes, shift)
   localStorage.setItem(SONG_KEY, song.id)
+  localStorage.setItem(SHIFT_KEY, String(shift))
   phase = 'idle'
   step = 0
   playIndex = -1
@@ -146,10 +159,11 @@ async function begin(): Promise<void> {
   haltMic()
   render()
   const seconds = Math.min(PHRASE_SECONDS, readSettings().noteSeconds)
+  const notes = phrase()
   try {
-    await playMidiSequence(song.notes, (index) => {
+    await playMidiSequence(notes, (index) => {
       playIndex = index
-      noteEl.textContent = noteName(song.notes[index])
+      noteEl.textContent = noteName(notes[index])
       noteEl.className = 'note is-live'
       detailEl.textContent = '先听'
       paintNotes()
@@ -189,7 +203,7 @@ function advance(): void {
   step += 1
   matched.reset()
   missed.reset()
-  if (step >= song.notes.length) {
+  if (step >= phrase().length) {
     token += 1
     phase = 'learned'
     haltMic()
@@ -238,7 +252,9 @@ function haltMic(): void {
 
 function render(): void {
   const busy = phase === 'playing' || phase === 'singing'
+  const notes = phrase()
   replayButton.disabled = !busy
+  fillShift(busy)
   for (const button of songButtons) {
     button.disabled = busy
     button.setAttribute('aria-pressed', button.dataset.song === song.id ? 'true' : 'false')
@@ -258,7 +274,7 @@ function render(): void {
     detailEl.textContent = '先听'
     extraEl.textContent = ''
   } else if (phase === 'singing') {
-    noteEl.textContent = noteName(song.notes[step])
+    noteEl.textContent = noteName(notes[step])
     noteEl.className = 'note is-empty'
     detailEl.textContent = `哼第 ${step + 1} 个音`
     extraEl.textContent = ''
@@ -271,9 +287,38 @@ function render(): void {
   root.dataset.state = phase
 }
 
+function phrase(): number[] {
+  return transposePhrase(song.notes, shift)
+}
+
+function readShift(): number {
+  const raw = localStorage.getItem(SHIFT_KEY)
+  const parsed = raw == null || raw === '' ? DEFAULT_SHIFT : Number(raw)
+  return clampPhraseShift(song.notes, Number.isInteger(parsed) ? parsed : DEFAULT_SHIFT)
+}
+
+function fillShift(busy: boolean): void {
+  if (shiftSong !== song.id) {
+    const { min, max } = phraseShiftBounds(song.notes)
+    const low = Math.min(...song.notes)
+    const high = Math.max(...song.notes)
+    const options: HTMLOptionElement[] = []
+    for (let value = min; value <= max; value += 1) {
+      const option = document.createElement('option')
+      option.value = String(value)
+      option.textContent = `${noteName(low + value)}–${noteName(high + value)}`
+      options.push(option)
+    }
+    shiftSelect.replaceChildren(...options)
+    shiftSong = song.id
+  }
+  shiftSelect.value = String(shift)
+  shiftSelect.disabled = busy
+}
+
 function paintNotes(): void {
   notesEl.replaceChildren(
-    ...song.notes.map((midi, index) => {
+    ...phrase().map((midi, index) => {
       const item = document.createElement('li')
       item.textContent = noteName(midi)
       if (phase === 'playing' && index === playIndex) item.classList.add('is-now')
