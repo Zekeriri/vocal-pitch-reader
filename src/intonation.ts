@@ -2,7 +2,6 @@ import { PitchListener, micErrorMessage } from './audio.ts'
 import {
   judgePitch,
   makeRound,
-  MatchHold,
   NOTE_HIGH,
   NOTE_LOW,
   RANGE_CEILING,
@@ -12,7 +11,7 @@ import {
 } from './intonation-round.ts'
 import { formatNote, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
-import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
+import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const PROMPT_GAP_MS = 1500
@@ -43,21 +42,27 @@ let abort: AbortController | null = null
 let expectStop = false
 let lastPrompt = ''
 let lastPromptAt = 0
-const hold = new MatchHold()
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
   if (phase !== 'listening' || detection.speaking) return
-  const freq = detection.result.freq
-  if (freq == null) return
-  const verdict = judgePitch(freq, targets[index])
+  const { result } = detection
+  if (result.freq == null) return
+  if (!result.stable) {
+    if (result.note) noteEl.textContent = formatNote(result.note)
+    noteEl.className = 'note is-live'
+    detailEl.textContent = '再稳一下'
+    extraEl.textContent = ''
+    return
+  }
+  const verdict = judgePitch(result.freq, targets[index])
   noteEl.textContent = verdictText(verdict)
   noteEl.className = verdict === 'match' ? 'note is-tuned' : 'note is-stable'
-  const sung = detection.result.note ? formatNote(detection.result.note) : ''
+  const sung = result.note ? formatNote(result.note) : ''
   detailEl.textContent = sung ? `唱成了 ${sung}` : '再稳一下'
-  extraEl.textContent = verdict === 'match' ? '稳住就过' : verdictText(verdict)
+  extraEl.textContent = verdict === 'match' ? '' : verdictText(verdict)
   if (verdict !== 'match') prompt(verdictText(verdict))
-  if (hold.push(performance.now(), verdict === 'match', readSettings().holdMs)) advance()
+  else advance()
 }, () => {
   if (expectStop || phase !== 'listening') return
   phase = 'idle'
@@ -117,7 +122,6 @@ async function present(): Promise<void> {
   const controller = new AbortController()
   abort = controller
   phase = 'playing'
-  hold.reset()
   lastPrompt = ''
   haltMic()
   render()

@@ -1,6 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
 import { clampPhraseShift, hearSongNote, phraseShiftBounds, songById, transposePhrase } from './ocarina-songs.ts'
-import { MatchHold } from './intonation-round.ts'
 import { formatNote, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
@@ -33,25 +32,28 @@ let step = 0
 let token = 0
 let abort: AbortController | null = null
 let expectStop = false
-const matched = new MatchHold()
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
   if (phase !== 'singing' || detection.speaking) return
-  const freq = detection.result.freq
-  if (freq == null) return
-  const hear = hearSongNote(freq, phrase()[step])
-  const now = performance.now()
-  const holdMs = readSettings().holdMs
+  const { result } = detection
+  if (result.freq == null) return
+  if (!result.stable) {
+    if (result.note) noteEl.textContent = formatNote(result.note)
+    noteEl.className = 'note is-live'
+    detailEl.textContent = '再稳一下'
+    extraEl.textContent = ''
+    return
+  }
+  const hear = hearSongNote(result.freq, phrase()[step])
   if (hear === 'match') {
     noteEl.textContent = noteName(phrase()[step])
     noteEl.className = 'note is-tuned'
-    detailEl.textContent = '稳住'
+    detailEl.textContent = '过了'
     extraEl.textContent = ''
-    if (matched.push(now, true, holdMs)) advance()
+    advance()
     return
   }
-  matched.reset()
   if (hear === 'wrong') {
     noteEl.textContent = '不对'
     noteEl.className = 'note is-stable'
@@ -137,7 +139,6 @@ async function present(): Promise<void> {
   const controller = new AbortController()
   abort = controller
   phase = 'playing'
-  matched.reset()
   haltMic()
   render()
   try {
@@ -177,7 +178,6 @@ async function present(): Promise<void> {
 function advance(): void {
   if (phase !== 'singing') return
   step += 1
-  matched.reset()
   if (step >= phrase().length) {
     token += 1
     phase = 'learned'
