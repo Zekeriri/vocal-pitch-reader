@@ -1,5 +1,6 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
 import { handleIntonationSpace, stopIntonation } from './intonation.ts'
+import { handleOcarinaSpace, stopOcarina } from './ocarina.ts'
 import { handlePharyngealSpace, stopPharyngeal } from './pharyngeal.ts'
 import { describeCents, formatNote } from './pitch.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
@@ -19,6 +20,7 @@ const testButton = document.querySelector<HTMLButtonElement>('#self-test')!
 const stage = document.querySelector<HTMLElement>('#stage')!
 const pharyngeal = document.querySelector<HTMLElement>('#pharyngeal')!
 const intonation = document.querySelector<HTMLElement>('#intonation')!
+const ocarina = document.querySelector<HTMLElement>('#ocarina')!
 const settingsPanel = document.querySelector<HTMLElement>('#settings')!
 const modeButtons = document.querySelectorAll<HTMLButtonElement>('[data-mode]')
 
@@ -54,6 +56,10 @@ window.addEventListener('keydown', (event) => {
     handleIntonationSpace()
     return
   }
+  if (!ocarina.hidden) {
+    handleOcarinaSpace()
+    return
+  }
   if (!settingsPanel.hidden) return
   void toggleMic()
 })
@@ -64,6 +70,7 @@ for (const button of modeButtons) {
     stage.hidden = mode !== 'tuner'
     pharyngeal.hidden = mode !== 'pharyngeal'
     intonation.hidden = mode !== 'intonation'
+    ocarina.hidden = mode !== 'ocarina'
     settingsPanel.hidden = mode !== 'settings'
     for (const item of modeButtons) {
       item.setAttribute('aria-pressed', item === button ? 'true' : 'false')
@@ -72,6 +79,7 @@ for (const button of modeButtons) {
     if (mode !== 'tuner') listener.stop()
     if (mode !== 'pharyngeal') stopPharyngeal()
     if (mode !== 'intonation') stopIntonation()
+    if (mode !== 'ocarina') stopOcarina()
     if (mode !== 'settings') stopSettingsPreview()
   })
 }
