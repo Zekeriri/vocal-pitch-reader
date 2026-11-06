@@ -74,36 +74,16 @@ export function preferScaleOctave(midi: number, low: number, high: number): numb
 }
 
 export class PeakHold {
-  private streak = 0
-  private streakMidi: number | null = null
-  private readonly frames: number
   highest: number | null = null
 
-  constructor(frames: number) {
-    this.frames = frames
-  }
-
   reset(): void {
-    this.streak = 0
-    this.streakMidi = null
     this.highest = null
   }
 
-  push(midi: number | null): number | null {
-    if (midi == null) {
-      this.streak = 0
-      this.streakMidi = null
-      return this.highest
-    }
+  push(midi: number | null, stable: boolean): number | null {
+    if (!stable || midi == null) return this.highest
     const rounded = Math.round(midi)
-    if (rounded === this.streakMidi) this.streak += 1
-    else {
-      this.streakMidi = rounded
-      this.streak = 1
-    }
-    if (this.streak >= this.frames && (this.highest == null || rounded > this.highest)) {
-      this.highest = rounded
-    }
+    if (this.highest == null || rounded > this.highest) this.highest = rounded
     return this.highest
   }
 }

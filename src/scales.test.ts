@@ -55,15 +55,14 @@ describe('practice notes', () => {
     expect(steps[24].group.number).toBe(1)
   })
 
-  it('remembers the highest note that stays for a few frames', () => {
-    const peak = new PeakHold(3)
-    expect(peak.push(60)).toBeNull()
-    expect(peak.push(60)).toBeNull()
-    expect(peak.push(64)).toBeNull()
-    expect(peak.push(64)).toBeNull()
-    expect(peak.push(64)).toBe(64)
-    expect(peak.push(62)).toBe(64)
-    expect(peak.push(null)).toBe(64)
+  it('remembers the highest note only after it has been held steady', () => {
+    const peak = new PeakHold()
+    expect(peak.push(64, false)).toBeNull()
+    expect(peak.push(60, true)).toBe(60)
+    expect(peak.push(67, false)).toBe(60)
+    expect(peak.push(64, true)).toBe(64)
+    expect(peak.push(62, true)).toBe(64)
+    expect(peak.push(null, true)).toBe(64)
   })
 
   it('folds an octave error back toward the scale and keeps a real higher note', () => {

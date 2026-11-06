@@ -48,7 +48,7 @@ let expectStop = false
 let singStarted = 0
 let quietSince = 0
 let finishing = false
-const peak = new PeakHold(3)
+const peak = new PeakHold()
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
@@ -63,11 +63,16 @@ const listener = new PitchListener((detection) => {
   quietSince = 0
   const step = current()
   const folded = preferScaleOctave(voiced, step.group.low.midi, step.group.high.midi)
-  peak.push(folded)
+  const stable = detection.result.stable
+  peak.push(folded, stable)
   const live = labelForMidi(folded, step.group.notes)
   noteEl.textContent = formatPracticeNote(live)
-  noteEl.className = 'note is-live'
-  detailEl.textContent = peak.highest == null ? '再唱高一点' : `最高 ${shown(peak.highest)}`
+  noteEl.className = stable ? 'note is-stable' : 'note is-live'
+  detailEl.textContent = stable
+    ? peak.highest == null
+      ? '再唱高一点'
+      : `最高 ${shown(peak.highest)}`
+    : '再稳一下才记最高音'
   paintNotes()
 }, () => {
   if (expectStop) return
@@ -238,7 +243,7 @@ function showResult(): void {
   if (highest == null) {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = '这次没有收到够清楚的音'
+    detailEl.textContent = '这次没有稳住一个音'
     highestEl.textContent = ''
     return
   }
