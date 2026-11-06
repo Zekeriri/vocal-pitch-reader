@@ -29,6 +29,7 @@ let shift = readShift()
 let shiftSong = ''
 let phase: Phase = 'idle'
 let step = 0
+let playIndex = -1
 let token = 0
 let abort: AbortController | null = null
 let expectStop = false
@@ -107,6 +108,7 @@ export function stopOcarina(): void {
   silenceSpeech()
   phase = 'idle'
   step = 0
+  playIndex = -1
   render()
 }
 
@@ -139,22 +141,27 @@ async function present(): Promise<void> {
   const controller = new AbortController()
   abort = controller
   phase = 'playing'
+  playIndex = -1
   haltMic()
   render()
   try {
-    await playMidiSequence([notes[step]], () => {
-      noteEl.textContent = noteName(notes[step])
+    await playMidiSequence(notes, (index) => {
+      playIndex = index
+      noteEl.textContent = noteName(notes[index])
       noteEl.className = 'note is-live'
-      detailEl.textContent = '先听'
+      detailEl.textContent = '先听整首'
+      paintNotes()
     }, controller.signal, readSettings().noteSeconds)
   } catch (error) {
     if (controller.signal.aborted || run !== token) return
     phase = 'idle'
-    statusEl.textContent = error instanceof Error ? error.message : '这个音没有播出来。'
+    playIndex = -1
+    statusEl.textContent = error instanceof Error ? error.message : '这首没有播出来。'
     render()
     return
   }
   if (controller.signal.aborted || run !== token) return
+  playIndex = -1
   phase = 'singing'
   render()
   try {
@@ -186,7 +193,7 @@ function advance(): void {
     speakChinese('学会了')
     return
   }
-  void present()
+  render()
 }
 
 function finish(): void {
@@ -196,6 +203,7 @@ function finish(): void {
   silenceSpeech()
   phase = 'idle'
   step = 0
+  playIndex = -1
   render()
 }
 
@@ -221,13 +229,13 @@ function render(): void {
   if (phase === 'idle') {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = '点开始，听第一个音'
+    detailEl.textContent = '点开始，先听整首'
     extraEl.textContent = ''
     renderMeter(0)
   } else if (phase === 'playing') {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = '先听'
+    detailEl.textContent = '先听整首'
     extraEl.textContent = ''
   } else if (phase === 'singing') {
     noteEl.textContent = noteName(notes[step])
@@ -277,7 +285,8 @@ function paintNotes(): void {
     ...phrase().map((midi, index) => {
       const item = document.createElement('li')
       item.textContent = noteName(midi)
-      if ((phase === 'playing' || phase === 'singing') && index === step) item.classList.add('is-now')
+      if (phase === 'playing' && index === playIndex) item.classList.add('is-now')
+      if (phase === 'singing' && index === step) item.classList.add('is-now')
       if ((phase === 'playing' || phase === 'singing') && index < step) item.classList.add('is-reached')
       if (phase === 'learned') item.classList.add('is-reached')
       return item
