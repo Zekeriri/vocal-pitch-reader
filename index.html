@@ -13,6 +13,7 @@
       <button class="mode" type="button" data-mode="tuner" aria-pressed="true">音高朗读</button>
       <button class="mode" type="button" data-mode="intonation" aria-pressed="false">音准训练</button>
       <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
+      <button class="mode" type="button" data-mode="ocarina" aria-pressed="false">时之笛</button>
       <button class="mode" type="button" data-mode="settings" aria-pressed="false">设置</button>
     </nav>
     <main class="stage" id="stage" data-state="idle">
@@ -127,6 +128,34 @@
       <p id="tune-status" class="status" role="status"></p>
     </main>
 
+    <main class="stage is-flow" id="ocarina" hidden>
+      <header>
+        <p class="eyebrow">时之笛</p>
+        <h1>哼出这首曲子</h1>
+        <p class="lede">先听六个音，再按同样的顺序哼出来。哼错一个稳住的音，就从头再来。</p>
+      </header>
+      <div class="modes exercise-switch" role="group" aria-label="曲子">
+        <button class="mode" type="button" data-song="lullaby" aria-pressed="true">塞尔达摇篮曲</button>
+        <button class="mode" type="button" data-song="epona" aria-pressed="false">伊波娜之歌</button>
+      </div>
+      <ol id="ocarina-notes" class="scale-row" aria-label="旋律"></ol>
+      <section class="readout ph-readout">
+        <p id="ocarina-note" class="note is-empty">·</p>
+        <p id="ocarina-detail" class="detail">先听旋律，再按顺序哼出来</p>
+        <p id="ocarina-extra" class="spoken" aria-live="assertive"></p>
+      </section>
+      <div class="meter" title="输入响度">
+        <div id="ocarina-level" class="meter-level"></div>
+        <div id="ocarina-gate" class="meter-gate"></div>
+      </div>
+      <div class="actions">
+        <button id="ocarina-play" class="primary" type="button">先听再哼</button>
+        <button id="ocarina-replay" class="ghost" type="button">再听一次</button>
+      </div>
+      <p class="hint">差在 25 音分以内算这个音。低八度也算同一个音。请戴耳机，免得旋律被当成你哼的。</p>
+      <p id="ocarina-status" class="status" role="status"></p>
+    </main>
+
     <main class="stage is-flow" id="settings" hidden>
       <header>
         <p class="eyebrow">设置</p>
@@ -136,7 +165,7 @@
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音高朗读的试听、音准训练和咽音练习用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <p class="hint">音高朗读的试听、音准训练、咽音练习和时之笛用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
         <label>
           钢琴音量
           <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />
