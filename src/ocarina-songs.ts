@@ -12,6 +12,13 @@ export type SongHear = 'match' | 'low' | 'high' | 'wrong'
 
 const MATCH_CENTS = 25
 const WRONG_CENTS = 50
+const PHRASE_LOW = 45
+const PHRASE_HIGH = 74
+
+export type PhraseShiftBounds = {
+  min: number
+  max: number
+}
 
 function midi(note: string): number {
   const value = nameToMidi(note)
@@ -34,6 +41,26 @@ export const SONGS: readonly OcarinaSong[] = [
 
 export function songById(id: string): OcarinaSong {
   return SONGS.find((song) => song.id === id) ?? SONGS[0]
+}
+
+export function phraseShiftBounds(notes: readonly number[]): PhraseShiftBounds {
+  const low = Math.min(...notes)
+  const high = Math.max(...notes)
+  return {
+    min: PHRASE_LOW - low,
+    max: PHRASE_HIGH - high,
+  }
+}
+
+export function clampPhraseShift(notes: readonly number[], shift: number): number {
+  const { min, max } = phraseShiftBounds(notes)
+  if (!Number.isInteger(shift)) return Math.min(max, Math.max(min, -12))
+  return Math.min(max, Math.max(min, shift))
+}
+
+export function transposePhrase(notes: readonly number[], shift: number): number[] {
+  const clamped = clampPhraseShift(notes, shift)
+  return notes.map((midi) => midi + clamped)
 }
 
 export function hearSongNote(freq: number, targetMidi: number, tolerance = MATCH_CENTS): SongHear {

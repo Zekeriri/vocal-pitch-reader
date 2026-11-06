@@ -138,6 +138,12 @@
         <button class="mode" type="button" data-song="lullaby" aria-pressed="true">塞尔达摇篮曲</button>
         <button class="mode" type="button" data-song="epona" aria-pressed="false">伊波娜之歌</button>
       </div>
+      <div class="range-pick">
+        <label>
+          音域
+          <select id="ocarina-shift"></select>
+        </label>
+      </div>
       <ol id="ocarina-notes" class="scale-row" aria-label="旋律"></ol>
       <section class="readout ph-readout">
         <p id="ocarina-note" class="note is-empty">·</p>
@@ -152,7 +158,7 @@
         <button id="ocarina-play" class="primary" type="button">先听再哼</button>
         <button id="ocarina-replay" class="ghost" type="button">再听一次</button>
       </div>
-      <p class="hint">差在 25 音分以内算这个音。低八度也算同一个音。请戴耳机，免得旋律被当成你哼的。</p>
+      <p class="hint">音域可以往低调，整首一起移。差在 25 音分以内算这个音，再低八度也算。请戴耳机，免得旋律被当成你哼的。</p>
       <p id="ocarina-status" class="status" role="status"></p>
     </main>
 
