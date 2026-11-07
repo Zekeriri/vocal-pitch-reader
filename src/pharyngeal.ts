@@ -87,8 +87,12 @@ subscribeSettings((settings) => {
 
 humButton.addEventListener('click', () => choose('hum'))
 flexButton.addEventListener('click', () => choose('flex'))
-prevButton.addEventListener('click', () => move(-1))
-nextButton.addEventListener('click', () => move(1))
+prevButton.addEventListener('click', () => {
+  move(-1)
+})
+nextButton.addEventListener('click', () => {
+  void playNext()
+})
 playButton.addEventListener('click', () => {
   if (phase === 'singing') finish(true)
   else void run()
@@ -128,16 +132,52 @@ function choose(id: PracticeExercise['id']): void {
   render()
 }
 
-function move(delta: number): void {
-  if (phase === 'playing' || phase === 'singing') return
-  stepIndex = Math.min(steps.length - 1, Math.max(0, stepIndex + delta))
+function move(delta: number): boolean {
+  if (phase === 'playing' || phase === 'singing') return false
+  const next = Math.min(steps.length - 1, Math.max(0, stepIndex + delta))
+  if (next === stepIndex) return false
+  stepIndex = next
   localStorage.setItem(STEP_KEY, String(stepIndex))
+  phase = 'idle'
+  playIndex = -1
+  peak.reset()
+  render()
+  return true
+}
+
+async function playNext(): Promise<void> {
+  if (!move(1)) return
+  const played = await playScale()
+  if (!played) return
   phase = 'idle'
   render()
 }
 
 async function run(): Promise<void> {
   if (phase === 'playing' || phase === 'singing') return
+  const played = await playScale()
+  if (!played) return
+  phase = 'singing'
+  singStarted = performance.now()
+  quietSince = 0
+  finishing = false
+  peak.reset()
+  render()
+  try {
+    const started = await listener.startMic()
+    if (!started || abort?.signal.aborted) {
+      phase = 'idle'
+      render()
+      return
+    }
+  } catch (error) {
+    phase = 'idle'
+    statusEl.textContent = micErrorMessage(error)
+    render()
+  }
+}
+
+async function playScale(): Promise<boolean> {
   abort?.abort()
   const controller = new AbortController()
   abort = controller
@@ -160,32 +200,15 @@ async function run(): Promise<void> {
       controller.signal,
     )
   } catch (error) {
-    if (controller.signal.aborted) return
+    if (controller.signal.aborted) return false
     phase = 'idle'
     statusEl.textContent = error instanceof Error ? error.message : '音阶没有播出来。'
     render()
-    return
+    return false
   }
-  if (controller.signal.aborted || abort !== controller) return
+  if (controller.signal.aborted || abort !== controller) return false
   playIndex = -1
-  phase = 'singing'
-  singStarted = performance.now()
-  quietSince = 0
-  finishing = false
-  peak.reset()
-  render()
-  try {
-    const started = await listener.startMic()
-    if (!started || controller.signal.aborted) {
-      phase = 'idle'
-      render()
-      return
-    }
-  } catch (error) {
-    phase = 'idle'
-    statusEl.textContent = micErrorMessage(error)
-    render()
-  }
+  return true
 }
 
 function finish(speak: boolean): void {
