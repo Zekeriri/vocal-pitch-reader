@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampPhraseShift, hearSongNote, phraseShiftBounds, songById, transposePhrase } from './ocarina-songs.ts'
-
-function freq(midi: number): number {
-  return 440 * 2 ** ((midi - 69) / 12)
-}
+import { advanceSong, clampPhraseShift, phraseShiftBounds, songById, transposePhrase } from './ocarina-songs.ts'
 
 describe('ocarina phrases', () => {
   it('keeps the six-note phrases from the game', () => {
@@ -21,12 +17,13 @@ describe('ocarina phrases', () => {
     expect(transposePhrase(songById('epona').notes, -24)[0]).toBe(50)
   })
 
-  it('accepts the written note or the same note an octave lower', () => {
-    expect(hearSongNote(freq(71), 71)).toBe('match')
-    expect(hearSongNote(freq(71 + 0.2), 71)).toBe('match')
-    expect(hearSongNote(freq(59), 71)).toBe('match')
-    expect(hearSongNote(freq(71.4), 71)).toBe('high')
-    expect(hearSongNote(freq(70.6), 71)).toBe('low')
-    expect(hearSongNote(freq(69), 71)).toBe('wrong')
+  it('accepts a song the way the game reads button presses', () => {
+    const lullaby = songById('lullaby').notes
+    let progress = 0
+    for (const midi of [71, 74, 69, 59, 62, 57]) progress = advanceSong(progress, midi, lullaby)
+    expect(progress).toBe(lullaby.length)
+    expect(advanceSong(2, 60, lullaby)).toBe(0)
+    expect(advanceSong(2, 71, lullaby)).toBe(1)
+    expect(advanceSong(0, 74, songById('epona').notes)).toBe(1)
   })
 })
