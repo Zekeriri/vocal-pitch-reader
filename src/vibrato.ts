@@ -1,6 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { formatNote, freqToMidi, midiToName } from './pitch.ts'
-import { playMidiSequence } from './scale-player.ts'
+import { freqToMidi } from './pitch.ts'
 import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import {
   CYCLE_MARKS,
@@ -14,13 +13,10 @@ import {
 } from './vibrato-read.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
-const PITCH_KEY = 'pitch-reader-vib-pitch'
 const VOWEL_KEY = 'pitch-reader-vib-vowel'
 const REGISTER_KEY = 'pitch-reader-vib-register'
 const EXERCISE_KEY = 'pitch-reader-vib-exercise'
 const GOAL_KEY = 'pitch-reader-vib-goal'
-const PITCH_LOW = 48
-const PITCH_HIGH = 72
 const QUIET_MS = 650
 const WAVE_MS = 2000
 const VOWELS = ['a', 'i', 'u', 'e', 'o'] as const
@@ -30,9 +26,7 @@ const extraEl = document.querySelector<HTMLElement>('#vib-extra')!
 const levelEl = document.querySelector<HTMLElement>('#vib-level')!
 const gateMarkEl = document.querySelector<HTMLElement>('#vib-gate')!
 const startButton = document.querySelector<HTMLButtonElement>('#vib-start')!
-const hearButton = document.querySelector<HTMLButtonElement>('#vib-hear')!
 const statusEl = document.querySelector<HTMLElement>('#vib-status')!
-const pitchSelect = document.querySelector<HTMLSelectElement>('#vib-pitch')!
 const vowelPanel = document.querySelector<HTMLElement>('#vib-vowel')!
 const speedPanel = document.querySelector<HTMLElement>('#vib-speed')!
 const vowelTab = document.querySelector<HTMLButtonElement>('#vib-tab-vowel')!
@@ -52,7 +46,6 @@ let boutOrigin = 0
 let frozen: VibratoRead | null = null
 let silentSince: number | null = null
 let expectStop = false
-let abort: AbortController | null = null
 let exercise: Exercise = storedChoice(EXERCISE_KEY, ['vowel', 'speed'], 'vowel')
 let goal: VibratoSpeed = storedChoice(GOAL_KEY, ['slow', 'medium', 'fast', 'faster'], 'slow')
 
@@ -90,7 +83,6 @@ subscribeSettings((settings) => {
   gateMarkEl.style.left = `${gateMarkRatio(listener.rmsMin) * 100}%`
 })
 
-fillPitch()
 fillDots()
 applyExercise()
 applyChoices()
@@ -99,14 +91,8 @@ render()
 startButton.addEventListener('click', () => {
   void toggle()
 })
-hearButton.addEventListener('click', () => {
-  void hear()
-})
 vowelTab.addEventListener('click', () => setExercise('vowel'))
 speedTab.addEventListener('click', () => setExercise('speed'))
-pitchSelect.addEventListener('change', () => {
-  localStorage.setItem(PITCH_KEY, pitchSelect.value)
-})
 for (const button of vowelButtons) {
   button.addEventListener('click', () => {
     localStorage.setItem(VOWEL_KEY, button.dataset.vowel ?? 'a')
@@ -135,7 +121,6 @@ export function handleVibratoSpace(): void {
 }
 
 export function stopVibrato(): void {
-  abort?.abort()
   haltMic()
   if (phase === 'listening') {
     phase = 'idle'
@@ -149,14 +134,12 @@ async function toggle(): Promise<void> {
     stopVibrato()
     return
   }
-  abort?.abort()
   samples = []
   frozen = null
   silentSince = null
   boutOrigin = 0
   statusEl.textContent = ''
   startButton.disabled = true
-  hearButton.disabled = true
   startButton.textContent = '正在打开…'
   try {
     const started = await listener.startMic()
@@ -172,24 +155,6 @@ async function toggle(): Promise<void> {
     phase = 'idle'
     statusEl.textContent = micErrorMessage(error)
     render()
-  }
-}
-
-async function hear(): Promise<void> {
-  if (phase === 'listening') return
-  abort?.abort()
-  const controller = new AbortController()
-  abort = controller
-  hearButton.disabled = true
-  statusEl.textContent = ''
-  try {
-    await playMidiSequence([Number(pitchSelect.value)], () => {}, controller.signal)
-  } catch (error) {
-    if (!controller.signal.aborted) {
-      statusEl.textContent = error instanceof Error ? error.message : '没播出来。'
-    }
-  } finally {
-    if (abort === controller) hearButton.disabled = false
   }
 }
 
@@ -233,16 +198,6 @@ function applyChoices(): void {
   }
 }
 
-function fillPitch(): void {
-  for (let midi = PITCH_LOW; midi <= PITCH_HIGH; midi += 1) {
-    const option = document.createElement('option')
-    option.value = String(midi)
-    option.textContent = formatNote(midiToName(midi))
-    pitchSelect.append(option)
-  }
-  pitchSelect.value = String(storedMidi(PITCH_KEY, 55))
-}
-
 function fillDots(): void {
   for (let index = 1; index <= CYCLE_MARKS; index += 1) {
     const item = document.createElement('li')
@@ -261,7 +216,6 @@ function render(): void {
   extraEl.textContent = extraFor(read, speed)
   startButton.disabled = false
   startButton.textContent = phase === 'listening' ? '结束' : '开始数'
-  hearButton.disabled = phase === 'listening'
   const dots = dotsEl.querySelectorAll('li')
   dots.forEach((dot, index) => {
     dot.classList.toggle('is-done', index < cycles)
@@ -340,14 +294,6 @@ function renderMeter(rms: number): void {
   const ratio = Math.min(1, rms / 0.08)
   levelEl.style.transform = `scaleX(${ratio})`
   levelEl.classList.toggle('hot', rms >= listener.rmsMin)
-}
-
-function storedMidi(key: string, fallback: number): number {
-  const raw = localStorage.getItem(key)
-  if (raw == null || raw === '') return fallback
-  const value = Number(raw)
-  if (!Number.isInteger(value) || value < PITCH_LOW || value > PITCH_HIGH) return fallback
-  return value
 }
 
 function storedChoice<T extends string>(key: string, allowed: readonly T[], fallback: T): T {

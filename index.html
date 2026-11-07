@@ -182,14 +182,7 @@
           <button class="mode" type="button" data-register="head" aria-pressed="true">头声 · 假声</button>
           <button class="mode" type="button" data-register="chest" aria-pressed="false">真声 · 胸声</button>
         </div>
-        <div class="range-pick">
-          <label>
-            舒适音调
-            <select id="vib-pitch"></select>
-          </label>
-          <button id="vib-hear" class="ghost" type="button">听这个音</button>
-        </div>
-        <p class="hint">选唱着舒服的音。一次至少颤 7～9 下，从中等、慢速开始。可以搭配手势，在心里默数。</p>
+        <p class="hint">用自己舒服的音。一次至少颤 7～9 下，从中等、慢速开始。可以搭配手势，在心里默数。</p>
       </div>
 
       <div id="vib-speed" hidden>
@@ -228,7 +221,7 @@
       <div class="actions">
         <button id="vib-start" class="primary" type="button">开始数</button>
       </div>
-      <p class="hint">大数字是这一口气里颤了几次。停下来次数还在。再开口就重新数。请戴耳机，免得钢琴声被算进去。</p>
+      <p class="hint">大数字是这一口气里颤了几次。停下来次数还在。再开口就重新数。音高自己选，唱着舒服就行。</p>
       <p id="vib-status" class="status" role="status"></p>
     </main>
 
@@ -278,7 +271,7 @@
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音高朗读的试听、音准训练、咽音练习、颤音、环倾和时之笛用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <p class="hint">音高朗读的试听、音准训练、咽音练习、环倾和时之笛用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
         <label>
           钢琴音量
           <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />
@@ -307,7 +300,7 @@
           <span id="gate-value">适中</span>
         </label>
         <p>
-          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾从 C4 走到 C5。短音下滑的高音不超过 1 秒，长音要自己站住 3 秒。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾从 C4 走到 C5。短音下滑的高音不超过 1 秒，长音超过 1 秒就行。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
         </p>
       </section>
       <p id="settings-status" class="status" role="status"></p>

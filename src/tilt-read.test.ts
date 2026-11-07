@@ -46,8 +46,9 @@ describe('环倾', () => {
   })
 
   it('keeps the longest time spent on the chosen pitch', () => {
-    const read = readSustain(hold(67, 0, 3200), 67, 3200)
-    expect(read.heldMs).toBeGreaterThanOrEqual(LONG_MIN_MS)
+    const read = readSustain(hold(67, 0, 1200), 67, 1200)
+    expect(read.heldMs).toBeGreaterThan(LONG_MIN_MS)
+    expect(readSustain(hold(67, 0, 800), 67, 800).heldMs).toBeLessThanOrEqual(LONG_MIN_MS)
     expect(read.live).toBe(true)
     const left = [...hold(67, 0, 800), ...hold(70, 1000, 400)]
     expect(readSustain(left, 67, 1400).heldMs).toBe(800)
