@@ -132,19 +132,13 @@ export const PRACTICE_EXERCISES: PracticeExercise[] = [
     id: 'hum',
     title: '咽音哼鸣练习',
     lede: '正常发声时，口腔在振动。软腭有振动。',
-    parts: [
-      { title: '第一部分 · 上行', groups: HUM_ASCENDING },
-      { title: '第二部分 · 下行', groups: [...HUM_ASCENDING].slice(0, 10).reverse() },
-    ],
+    parts: [{ title: '上行', groups: HUM_ASCENDING }],
   },
   {
     id: 'flex',
     title: '灵活性音阶训练',
     lede: '顺着音阶往上走，看最高音够不够得到。',
-    parts: [
-      { title: '第一部分 · 上行', groups: FLEX_ASCENDING },
-      { title: '第二部分 · 下行', groups: [...FLEX_ASCENDING].slice(0, 12).reverse() },
-    ],
+    parts: [{ title: '上行', groups: FLEX_ASCENDING }],
   },
 ]
 

@@ -230,7 +230,9 @@ function render(): void {
   ledeEl.textContent = exercise.lede
   humButton.setAttribute('aria-pressed', exercise.id === 'hum' ? 'true' : 'false')
   flexButton.setAttribute('aria-pressed', exercise.id === 'flex' ? 'true' : 'false')
-  partEl.textContent = step.part.title
+  const showPart = exercise.parts.length > 1
+  partEl.hidden = !showPart
+  partEl.textContent = showPart ? step.part.title : ''
   groupEl.textContent = `第 ${step.group.number} 组 · 基准 ${formatPracticeNote(step.group.low.label)}、${formatPracticeNote(step.group.high.label)} · ${step.index + 1}/${step.count}`
   prevButton.disabled = busy || step.index === 0
   nextButton.disabled = busy || step.index === step.count - 1
