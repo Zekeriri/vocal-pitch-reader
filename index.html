@@ -14,6 +14,7 @@
       <button class="mode" type="button" data-mode="intonation" aria-pressed="false">音准训练</button>
       <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
       <button class="mode" type="button" data-mode="ocarina" aria-pressed="false">时之笛</button>
+      <button class="mode" type="button" data-mode="vibrato" aria-pressed="false">颤音</button>
       <button class="mode" type="button" data-mode="settings" aria-pressed="false">设置</button>
     </nav>
     <main class="stage" id="stage" data-state="idle">
@@ -157,6 +158,79 @@
       <p id="ocarina-status" class="status" role="status"></p>
     </main>
 
+    <main class="stage is-flow" id="vibrato" hidden>
+      <header>
+        <p class="eyebrow">颤音</p>
+        <h1>把颤音练稳</h1>
+        <p class="lede">先在一个舒服的音上颤满一轮，再一点点加快。提速不推气。</p>
+      </header>
+      <div class="modes exercise-switch" role="group" aria-label="颤音练习">
+        <button class="mode" id="vib-tab-vowel" type="button" aria-pressed="true">练习1 · 元音</button>
+        <button class="mode" id="vib-tab-speed" type="button" aria-pressed="false">练习2 · 提速</button>
+      </div>
+
+      <div id="vib-vowel">
+        <div class="modes exercise-switch" role="group" aria-label="元音">
+          <button class="mode" type="button" data-vowel="a" aria-pressed="true">a</button>
+          <button class="mode" type="button" data-vowel="i" aria-pressed="false">i</button>
+          <button class="mode" type="button" data-vowel="u" aria-pressed="false">u</button>
+          <button class="mode" type="button" data-vowel="e" aria-pressed="false">e</button>
+          <button class="mode" type="button" data-vowel="o" aria-pressed="false">o</button>
+        </div>
+        <div class="modes exercise-switch" role="group" aria-label="声区">
+          <button class="mode" type="button" data-register="head" aria-pressed="true">头声 · 假声</button>
+          <button class="mode" type="button" data-register="chest" aria-pressed="false">真声 · 胸声</button>
+        </div>
+        <div class="range-pick">
+          <label>
+            舒适音调
+            <select id="vib-pitch"></select>
+          </label>
+          <button id="vib-hear" class="ghost" type="button">听这个音</button>
+        </div>
+        <p class="hint">选唱着舒服的音。一次至少颤 7～9 下，从中等、慢速开始。可以搭配手势，在心里默数。</p>
+      </div>
+
+      <div id="vib-speed" hidden>
+        <div class="speed-grid" role="group" aria-label="目标速度">
+          <button class="speed-card" type="button" data-speed="slow" aria-pressed="true">
+            <strong>慢速</strong>
+            <span>3～4 次/秒</span>
+          </button>
+          <button class="speed-card" type="button" data-speed="medium" aria-pressed="false">
+            <strong>中速</strong>
+            <span>4～5 次/秒</span>
+          </button>
+          <button class="speed-card" type="button" data-speed="fast" aria-pressed="false">
+            <strong>快速</strong>
+            <span>5～6 次/秒</span>
+          </button>
+          <button class="speed-card" type="button" data-speed="faster" aria-pressed="false">
+            <strong>超快</strong>
+            <span>6 次/秒以上</span>
+          </button>
+        </div>
+        <p class="hint">从慢速开始，稳住再加快。不着急。提速不推气。窍门：哭快一点。</p>
+      </div>
+
+      <svg id="vib-wave" class="vib-wave" viewBox="0 0 360 120" role="img" aria-label="音高起伏"></svg>
+      <ol id="vib-dots" class="dots" aria-label="这一次的颤音次数"></ol>
+      <section class="readout ph-readout">
+        <p id="vib-note" class="note is-empty">·</p>
+        <p id="vib-detail" class="detail">点开始数，在舒服的音上颤起来</p>
+        <p id="vib-extra" class="spoken" aria-live="polite"></p>
+      </section>
+      <div class="meter" title="输入响度">
+        <div id="vib-level" class="meter-level"></div>
+        <div id="vib-gate" class="meter-gate"></div>
+      </div>
+      <div class="actions">
+        <button id="vib-start" class="primary" type="button">开始数</button>
+      </div>
+      <p class="hint">大数字是这一口气里颤了几次。停下来次数还在。再开口就重新数。请戴耳机，免得钢琴声被算进去。</p>
+      <p id="vib-status" class="status" role="status"></p>
+    </main>
+
     <main class="stage is-flow" id="settings" hidden>
       <header>
         <p class="eyebrow">设置</p>
@@ -166,7 +240,7 @@
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音高朗读的试听、音准训练、咽音练习和时之笛用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <p class="hint">音高朗读的试听、音准训练、咽音练习、时之笛和颤音的舒适音调，用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
         <label>
           钢琴音量
           <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />
@@ -195,7 +269,7 @@
           <span id="gate-value">适中</span>
         </label>
         <p>
-          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
         </p>
       </section>
       <p id="settings-status" class="status" role="status"></p>
