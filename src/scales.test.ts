@@ -30,29 +30,24 @@ describe('practice notes', () => {
     }
   })
 
-  it('orders humming up through group 11, then down from group 10', () => {
+  it('keeps humming to group 11', () => {
     const steps = practiceSteps(exerciseById('hum'))
-    expect(steps).toHaveLength(21)
+    expect(steps).toHaveLength(11)
     expect(steps[0].group.number).toBe(1)
     expect(steps[0].group.notes.map((note) => note.label).join(' ')).toBe(
       'A2 B2 Db3 D3 E3 D3 Db3 B2 A2',
     )
-    expect(steps[10].part.title).toContain('上行')
     expect(steps[10].group.number).toBe(11)
-    expect(steps[11].part.title).toContain('下行')
-    expect(steps[11].group.number).toBe(10)
-    expect(steps[11].group.notes.map((note) => note.label)).toContain('Cb4')
-    expect(steps[20].group.number).toBe(1)
+    expect(steps.every((step) => step.part.title.includes('下行'))).toBe(false)
   })
 
-  it('orders flexibility up through group 13, then down from group 12', () => {
+  it('keeps flexibility to group 13', () => {
     const steps = practiceSteps(exerciseById('flex'))
-    expect(steps).toHaveLength(25)
+    expect(steps).toHaveLength(13)
     expect(steps[2].group.notes[1].midi).toBe(nameToMidi('F#3'))
     expect(steps[12].group.number).toBe(13)
     expect(steps[12].group.high.label).toBe('C5')
-    expect(steps[13].group.number).toBe(12)
-    expect(steps[24].group.number).toBe(1)
+    expect(steps.every((step) => step.part.title.includes('下行'))).toBe(false)
   })
 
   it('remembers the highest note only after it has been held steady', () => {
