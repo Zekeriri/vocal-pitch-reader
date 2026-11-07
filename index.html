@@ -13,8 +13,9 @@
       <button class="mode" type="button" data-mode="tuner" aria-pressed="true">音高朗读</button>
       <button class="mode" type="button" data-mode="intonation" aria-pressed="false">音准训练</button>
       <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
-      <button class="mode" type="button" data-mode="ocarina" aria-pressed="false">时之笛</button>
       <button class="mode" type="button" data-mode="vibrato" aria-pressed="false">颤音</button>
+      <button class="mode" type="button" data-mode="tilt" aria-pressed="false">环倾</button>
+      <button class="mode" type="button" data-mode="ocarina" aria-pressed="false">时之笛</button>
       <button class="mode" type="button" data-mode="settings" aria-pressed="false">设置</button>
     </nav>
     <main class="stage" id="stage" data-state="idle">
@@ -231,6 +232,43 @@
       <p id="vib-status" class="status" role="status"></p>
     </main>
 
+    <main class="stage is-flow" id="tilt" hidden>
+      <header>
+        <p class="eyebrow">环倾</p>
+        <h1>三个训练</h1>
+        <p class="lede">先短短滑下来，再重复短音，最后把音拉长。</p>
+      </header>
+      <div class="modes exercise-switch" role="group" aria-label="环倾训练">
+        <button class="mode" id="tilt-tab-slide" type="button" aria-pressed="true">短音下滑</button>
+        <button class="mode" id="tilt-tab-repeat" type="button" aria-pressed="false">短音重复</button>
+        <button class="mode" id="tilt-tab-long" type="button" aria-pressed="false">长音</button>
+      </div>
+      <p id="tilt-brief" class="hint">用真声，从 C5 滑到 C4。这一下不超过 1 秒。</p>
+      <div class="range-pick">
+        <label id="tilt-pitch-label" hidden>
+          音高
+          <select id="tilt-pitch"></select>
+        </label>
+        <button id="tilt-hear" class="ghost" type="button">听 C5 到 C4</button>
+      </div>
+      <svg id="tilt-wave" class="tilt-wave" viewBox="0 0 360 120" role="img" aria-label="音高"></svg>
+      <ol id="tilt-dots" class="dots" aria-label="环倾次数" hidden></ol>
+      <section class="readout ph-readout">
+        <p id="tilt-note" class="note is-empty">·</p>
+        <p id="tilt-detail" class="detail">点开始，用真声滑下来</p>
+        <p id="tilt-extra" class="spoken" aria-live="polite"></p>
+      </section>
+      <div class="meter" title="输入响度">
+        <div id="tilt-level" class="meter-level"></div>
+        <div id="tilt-gate" class="meter-gate"></div>
+      </div>
+      <div class="actions">
+        <button id="tilt-start" class="primary" type="button">开始</button>
+      </div>
+      <p class="hint">短音下滑固定在 C5 到 C4。后两项自己选音。请戴耳机，免得钢琴声被算进去。</p>
+      <p id="tilt-status" class="status" role="status"></p>
+    </main>
+
     <main class="stage is-flow" id="settings" hidden>
       <header>
         <p class="eyebrow">设置</p>
@@ -240,7 +278,7 @@
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音高朗读的试听、音准训练、咽音练习、时之笛和颤音的舒适音调，用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <p class="hint">音高朗读的试听、音准训练、咽音练习、颤音、环倾和时之笛用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
         <label>
           钢琴音量
           <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />
@@ -269,7 +307,7 @@
           <span id="gate-value">适中</span>
         </label>
         <p>
-          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾的短音看这一下有多长，长音要自己站住 3 秒。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
         </p>
       </section>
       <p id="settings-status" class="status" role="status"></p>
