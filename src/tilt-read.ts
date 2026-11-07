@@ -12,7 +12,7 @@ export const TILT_MIN = 3
 export const TILT_GAP_MS = 220
 export const TILT_MIN_MS = 80
 export const TILT_MAX_MS = 1000
-export const LONG_MIN_MS = 3000
+export const LONG_MIN_MS = 1000
 export const PITCH_WINDOW = PEAK_WINDOW
 
 export function scaleNotes(): number[] {

@@ -256,21 +256,21 @@ function renderRepeat(midi: number, now: number): void {
 
 function renderLong(midi: number, now: number): void {
   const read = samples.length > 0 ? readSustain(samples, midi, now) : { heldMs: 0, live: false, away: false }
-  if (read.heldMs >= LONG_MIN_MS) done.long[step] = true
+  if (read.heldMs > LONG_MIN_MS) done.long[step] = true
   const seconds = read.heldMs / 1000
   noteEl.textContent = seconds > 0 ? seconds.toFixed(1) : '·'
   noteEl.classList.toggle('is-empty', seconds <= 0)
-  if (read.heldMs >= LONG_MIN_MS) detailEl.textContent = '三秒了'
+  if (read.heldMs > LONG_MIN_MS) detailEl.textContent = '超过 1 秒了'
   else if (read.away) detailEl.textContent = '音离开了，再站住'
-  else if (phase === 'listening') detailEl.textContent = '站住，超过 3 秒'
-  else detailEl.textContent = seconds > 0 ? '再站住一会儿' : '点开始，站住 3 秒以上'
-  extraEl.textContent = read.heldMs >= LONG_MIN_MS ? '这个音可以了' : ''
+  else if (phase === 'listening') detailEl.textContent = '站住，超过 1 秒'
+  else detailEl.textContent = seconds > 0 ? '再站住一会儿' : '点开始，站住超过 1 秒'
+  extraEl.textContent = read.heldMs > LONG_MIN_MS ? '这个音可以了' : ''
 }
 
 function briefFor(): string {
   if (exercise === 'slide') return '用真声。碰一下这个高音，再滑向低音。高音不超过 1 秒。'
   if (exercise === 'repeat') return '在这个音上做短音。每次算一次环倾，至少三次。'
-  return '在这个音上站住，超过 3 秒。'
+  return '在这个音上站住，超过 1 秒。'
 }
 
 function fillNotes(): void {
