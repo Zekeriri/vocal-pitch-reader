@@ -6,15 +6,11 @@ export type OcarinaSong = {
   id: SongId
   title: string
   notes: number[]
+  bpm: number
+  beats: number[]
 }
 
-const PHRASE_LOW = 45
-const PHRASE_HIGH = 74
-
-export type PhraseShiftBounds = {
-  min: number
-  max: number
-}
+export const RELATIVE_STEPS = 1.5
 
 function midi(note: string): number {
   const value = nameToMidi(note)
@@ -27,11 +23,15 @@ export const SONGS: readonly OcarinaSong[] = [
     id: 'lullaby',
     title: '塞尔达摇篮曲',
     notes: ['B4', 'D5', 'A4', 'B4', 'D5', 'A4'].map(midi),
+    bpm: 100,
+    beats: [1, 1, 1, 1, 1, 1],
   },
   {
     id: 'epona',
     title: '伊波娜之歌',
     notes: ['D5', 'B4', 'A4', 'D5', 'B4', 'A4'].map(midi),
+    bpm: 96,
+    beats: [1, 1, 1, 1, 1, 1],
   },
 ]
 
@@ -39,35 +39,34 @@ export function songById(id: string): OcarinaSong {
   return SONGS.find((song) => song.id === id) ?? SONGS[0]
 }
 
-export function phraseShiftBounds(notes: readonly number[]): PhraseShiftBounds {
-  const low = Math.min(...notes)
-  const high = Math.max(...notes)
-  return {
-    min: PHRASE_LOW - low,
-    max: PHRASE_HIGH - high,
+export function songNoteSeconds(song: OcarinaSong): number[] {
+  return song.beats.map((beats) => (60 / song.bpm) * beats)
+}
+
+export function songIntervals(notes: readonly number[]): number[] {
+  if (notes.length === 0) return []
+  const root = notes[0]
+  return notes.map((note) => note - root)
+}
+
+export function followMelody(
+  progress: number,
+  sungMidi: number,
+  anchorMidi: number | null,
+  notes: readonly number[],
+): { progress: number; anchor: number } {
+  if (notes.length === 0) return { progress: 0, anchor: anchorMidi ?? sungMidi }
+  if (anchorMidi == null || progress <= 0) return { progress: 1, anchor: sungMidi }
+  const expected = notes[Math.min(progress, notes.length - 1)] - notes[0]
+  if (Math.abs(foldOctave(sungMidi - anchorMidi - expected)) <= RELATIVE_STEPS) {
+    return { progress: progress + 1, anchor: anchorMidi }
   }
+  return { progress: 1, anchor: sungMidi }
 }
 
-export function clampPhraseShift(notes: readonly number[], shift: number): number {
-  const { min, max } = phraseShiftBounds(notes)
-  if (!Number.isInteger(shift)) return Math.min(max, Math.max(min, -12))
-  return Math.min(max, Math.max(min, shift))
-}
-
-export function transposePhrase(notes: readonly number[], shift: number): number[] {
-  const clamped = clampPhraseShift(notes, shift)
-  return notes.map((midi) => midi + clamped)
-}
-
-export function pitchClass(midi: number): number {
-  return ((Math.round(midi) % 12) + 12) % 12
-}
-
-export function advanceSong(progress: number, sungMidi: number, notes: readonly number[]): number {
-  if (notes.length === 0) return 0
-  const sung = pitchClass(sungMidi)
-  const index = Math.min(Math.max(progress, 0), notes.length - 1)
-  if (sung === pitchClass(notes[index])) return progress + 1
-  if (sung === pitchClass(notes[0])) return 1
-  return 0
+function foldOctave(error: number): number {
+  let diff = error
+  while (diff > 6) diff -= 12
+  while (diff < -6) diff += 12
+  return diff
 }

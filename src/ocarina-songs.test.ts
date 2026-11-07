@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { advanceSong, clampPhraseShift, phraseShiftBounds, songById, transposePhrase } from './ocarina-songs.ts'
+import { followMelody, songById, songIntervals, songNoteSeconds } from './ocarina-songs.ts'
 
 describe('ocarina phrases', () => {
   it('keeps the six-note phrases from the game', () => {
@@ -8,22 +8,20 @@ describe('ocarina phrases', () => {
     expect(songById('missing').title).toBe('塞尔达摇篮曲')
   })
 
-  it('shifts the whole phrase down inside the piano range', () => {
-    const notes = songById('lullaby').notes
-    expect(phraseShiftBounds(notes)).toEqual({ min: -24, max: 0 })
-    expect(transposePhrase(notes, -12)).toEqual([59, 62, 57, 59, 62, 57])
-    expect(transposePhrase(notes, -30)).toEqual([47, 50, 45, 47, 50, 45])
-    expect(clampPhraseShift(notes, 5)).toBe(0)
-    expect(transposePhrase(songById('epona').notes, -24)[0]).toBe(50)
+  it('plays the phrases in even beats at the game tempo', () => {
+    expect(songNoteSeconds(songById('lullaby'))).toEqual([0.6, 0.6, 0.6, 0.6, 0.6, 0.6])
+    expect(songNoteSeconds(songById('epona')).every((seconds) => seconds === 0.625)).toBe(true)
+    expect(songIntervals(songById('lullaby').notes)).toEqual([0, 3, -2, 0, 3, -2])
   })
 
-  it('accepts a song the way the game reads button presses', () => {
-    const lullaby = songById('lullaby').notes
-    let progress = 0
-    for (const midi of [71, 74, 69, 59, 62, 57]) progress = advanceSong(progress, midi, lullaby)
-    expect(progress).toBe(lullaby.length)
-    expect(advanceSong(2, 60, lullaby)).toBe(0)
-    expect(advanceSong(2, 71, lullaby)).toBe(1)
-    expect(advanceSong(0, 74, songById('epona').notes)).toBe(1)
+  it('accepts a melody that keeps the shape from any starting note', () => {
+    const notes = songById('lullaby').notes
+    let state = followMelody(0, 48, null, notes)
+    expect(state).toEqual({ progress: 1, anchor: 48 })
+    for (const midi of [51, 46.2, 48, 62.4, 46]) state = followMelody(state.progress, midi, state.anchor, notes)
+    expect(state.progress).toBe(notes.length)
+    expect(state.anchor).toBe(48)
+    const restarted = followMelody(1, 48, 48, notes)
+    expect(restarted).toEqual({ progress: 1, anchor: 48 })
   })
 })
