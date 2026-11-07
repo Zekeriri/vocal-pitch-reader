@@ -1,20 +1,12 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import {
-  advanceSong,
-  clampPhraseShift,
-  phraseShiftBounds,
-  pitchClass,
-  songById,
-  transposePhrase,
-} from './ocarina-songs.ts'
-import { formatNote, midiToName } from './pitch.ts'
+import { followMelody, RELATIVE_STEPS, songById, songIntervals, songNoteSeconds } from './ocarina-songs.ts'
+import { formatNote, freqToMidi, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
-import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
+import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SONG_KEY = 'pitch-reader-ocarina'
-const SHIFT_KEY = 'pitch-reader-ocarina-shift'
-const DEFAULT_SHIFT = -12
+const SVG_NS = 'http://www.w3.org/2000/svg'
 
 const root = document.querySelector<HTMLElement>('#ocarina')!
 const notesEl = document.querySelector<HTMLOListElement>('#ocarina-notes')!
@@ -27,17 +19,18 @@ const playButton = document.querySelector<HTMLButtonElement>('#ocarina-play')!
 const replayButton = document.querySelector<HTMLButtonElement>('#ocarina-replay')!
 const statusEl = document.querySelector<HTMLElement>('#ocarina-status')!
 const songButtons = document.querySelectorAll<HTMLButtonElement>('[data-song]')
-const shiftSelect = document.querySelector<HTMLSelectElement>('#ocarina-shift')!
+const laneEl = document.querySelector<SVGSVGElement>('#ocarina-lane')!
 
 type Phase = 'idle' | 'playing' | 'singing' | 'learned'
 
 let song = songById(localStorage.getItem(SONG_KEY) ?? 'lullaby')
-let shift = readShift()
-let shiftSong = ''
 let phase: Phase = 'idle'
 let step = 0
+let anchor: number | null = null
+let preview: number | null = null
 let heldClass: number | null = null
 let playIndex = -1
+const trail: number[] = []
 let token = 0
 let abort: AbortController | null = null
 let expectStop = false
@@ -46,14 +39,23 @@ const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
   if (phase !== 'singing' || detection.speaking) return
   const { result } = detection
-  if (result.midi == null || !result.stable) {
-    if (result.midi == null) heldClass = null
+  if (result.freq == null) {
+    preview = null
+    heldClass = null
+    paintLane(null)
     return
   }
+  const midiFloat = freqToMidi(result.freq)
+  if (preview == null) preview = midiFloat
+  const rel = midiFloat - (anchor ?? preview)
+  trail.push(rel)
+  if (trail.length > 36) trail.shift()
+  paintLane(rel)
+  if (!result.stable || result.midi == null) return
   const sungClass = pitchClass(result.midi)
   if (sungClass === heldClass) return
   heldClass = sungClass
-  takeNote(result.midi)
+  takeNote(midiFloat)
 }, () => {
   if (expectStop || phase !== 'singing') return
   phase = 'idle'
@@ -79,13 +81,6 @@ for (const button of songButtons) {
     choose(button.dataset.song ?? 'lullaby')
   })
 }
-shiftSelect.addEventListener('change', () => {
-  if (phase === 'playing' || phase === 'singing') return
-  shift = clampPhraseShift(song.notes, Number(shiftSelect.value))
-  localStorage.setItem(SHIFT_KEY, String(shift))
-  render()
-})
-
 render()
 
 export function stopOcarina(): void {
@@ -95,9 +90,8 @@ export function stopOcarina(): void {
   haltMic()
   silenceSpeech()
   phase = 'idle'
-  step = 0
-  heldClass = null
   playIndex = -1
+  resetAttempt()
   render()
 }
 
@@ -109,12 +103,9 @@ export function handleOcarinaSpace(): void {
 
 function choose(id: string): void {
   song = songById(id)
-  shift = clampPhraseShift(song.notes, shift)
   localStorage.setItem(SONG_KEY, song.id)
-  localStorage.setItem(SHIFT_KEY, String(shift))
   phase = 'idle'
-  step = 0
-  heldClass = null
+  resetAttempt()
   render()
 }
 
@@ -125,13 +116,14 @@ async function begin(): Promise<void> {
 }
 
 async function present(): Promise<void> {
-  const notes = phrase()
+  const notes = song.notes
   const run = ++token
   abort?.abort()
   const controller = new AbortController()
   abort = controller
   phase = 'playing'
   playIndex = -1
+  resetAttempt()
   haltMic()
   render()
   try {
@@ -141,7 +133,8 @@ async function present(): Promise<void> {
       noteEl.className = 'note is-live'
       detailEl.textContent = '先听整首'
       paintNotes()
-    }, controller.signal, readSettings().noteSeconds)
+      paintLane(null)
+    }, controller.signal, songNoteSeconds(song))
   } catch (error) {
     if (controller.signal.aborted || run !== token) return
     phase = 'idle'
@@ -152,8 +145,7 @@ async function present(): Promise<void> {
   }
   if (controller.signal.aborted || run !== token) return
   playIndex = -1
-  step = 0
-  heldClass = null
+  resetAttempt()
   phase = 'singing'
   render()
   try {
@@ -176,9 +168,12 @@ async function present(): Promise<void> {
 
 function takeNote(midi: number): void {
   if (phase !== 'singing') return
-  const notes = phrase()
-  const next = advanceSong(step, midi, notes)
-  if (next >= notes.length) {
+  const notes = song.notes
+  const next = followMelody(step, midi, anchor, notes)
+  if (next.anchor !== anchor) trail.length = 0
+  anchor = next.anchor
+  preview = next.anchor
+  if (next.progress >= notes.length) {
     step = notes.length
     token += 1
     phase = 'learned'
@@ -187,13 +182,14 @@ function takeNote(midi: number): void {
     speakChinese('学会了')
     return
   }
-  const matched = next > step
-  step = next
+  const matched = next.progress > step
+  step = next.progress
   noteEl.textContent = noteName(Math.round(midi))
   noteEl.className = matched ? 'note is-tuned' : 'note is-stable'
   detailEl.textContent = matched ? '记下了' : '重来'
   extraEl.textContent = matched ? '' : '重来'
   paintNotes()
+  paintLane(0)
 }
 
 function finish(): void {
@@ -202,9 +198,8 @@ function finish(): void {
   haltMic()
   silenceSpeech()
   phase = 'idle'
-  step = 0
-  heldClass = null
   playIndex = -1
+  resetAttempt()
   render()
 }
 
@@ -218,7 +213,6 @@ function haltMic(): void {
 function render(): void {
   const busy = phase === 'playing' || phase === 'singing'
   replayButton.disabled = !busy
-  fillShift(busy)
   for (const button of songButtons) {
     button.disabled = busy
     button.setAttribute('aria-pressed', button.dataset.song === song.id ? 'true' : 'false')
@@ -240,7 +234,7 @@ function render(): void {
   } else if (phase === 'singing') {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = '按顺序把六个音哼出来'
+    detailEl.textContent = '从任意音高，按这个形状哼'
     extraEl.textContent = ''
   } else if (phase === 'learned') {
     noteEl.textContent = '学会了'
@@ -249,40 +243,20 @@ function render(): void {
     extraEl.textContent = '学会了'
   }
   root.dataset.state = phase
+  paintLane(phase === 'singing' ? (anchor == null ? null : 0) : null)
 }
 
-function phrase(): number[] {
-  return transposePhrase(song.notes, shift)
-}
-
-function readShift(): number {
-  const raw = localStorage.getItem(SHIFT_KEY)
-  const parsed = raw == null || raw === '' ? DEFAULT_SHIFT : Number(raw)
-  return clampPhraseShift(song.notes, Number.isInteger(parsed) ? parsed : DEFAULT_SHIFT)
-}
-
-function fillShift(busy: boolean): void {
-  if (shiftSong !== song.id) {
-    const { min, max } = phraseShiftBounds(song.notes)
-    const low = Math.min(...song.notes)
-    const high = Math.max(...song.notes)
-    const options: HTMLOptionElement[] = []
-    for (let value = min; value <= max; value += 1) {
-      const option = document.createElement('option')
-      option.value = String(value)
-      option.textContent = `${noteName(low + value)}–${noteName(high + value)}`
-      options.push(option)
-    }
-    shiftSelect.replaceChildren(...options)
-    shiftSong = song.id
-  }
-  shiftSelect.value = String(shift)
-  shiftSelect.disabled = busy
+function resetAttempt(): void {
+  step = 0
+  anchor = null
+  preview = null
+  heldClass = null
+  trail.length = 0
 }
 
 function paintNotes(): void {
   notesEl.replaceChildren(
-    ...phrase().map((midi, index) => {
+    ...song.notes.map((midi, index) => {
       const item = document.createElement('li')
       item.textContent = noteName(midi)
       if (phase === 'playing' && index === playIndex) item.classList.add('is-now')
@@ -296,6 +270,94 @@ function paintNotes(): void {
 
 function noteName(midi: number): string {
   return formatNote(midiToName(midi))
+}
+
+function pitchClass(midi: number): number {
+  return ((Math.round(midi) % 12) + 12) % 12
+}
+
+function paintLane(liveRel: number | null): void {
+  const intervals = songIntervals(song.notes)
+  const minRel = Math.min(...intervals) - 3
+  const maxRel = Math.max(...intervals) + 3
+  const width = 360
+  const height = 168
+  const padX = 14
+  const padY = 16
+  const innerW = width - padX * 2
+  const innerH = height - padY * 2
+  const colW = innerW / intervals.length
+  const semitone = innerH / (maxRel - minRel)
+  const yOf = (rel: number) => padY + (1 - (rel - minRel) / (maxRel - minRel)) * innerH
+  const current = phase === 'playing' ? playIndex : Math.min(step, intervals.length - 1)
+  laneEl.replaceChildren()
+  intervals.forEach((interval, index) => {
+    const reached = phase === 'learned' || index < step
+    const now = (phase === 'playing' && index === playIndex) || (phase === 'singing' && index === step)
+    const x = padX + index * colW
+    const zoneH = semitone * RELATIVE_STEPS * 2
+    laneEl.append(
+      svgEl('rect', {
+        x: String(x + 6),
+        y: String(yOf(interval) - zoneH / 2),
+        width: String(colW - 12),
+        height: String(zoneH),
+        rx: '8',
+        fill: now ? 'rgba(240, 180, 41, 0.22)' : 'rgba(240, 180, 41, 0.08)',
+      }),
+      svgEl('rect', {
+        x: String(x + 10),
+        y: String(yOf(interval) - semitone * 0.55),
+        width: String(colW - 20),
+        height: String(semitone * 1.1),
+        rx: '7',
+        fill: reached ? '#d6e07a' : now ? '#f0b429' : '#3a3b32',
+      }),
+    )
+  })
+  if (liveRel == null || phase !== 'singing') return
+  const column = Math.min(Math.max(current, 0), intervals.length - 1)
+  const expected = intervals[column] ?? 0
+  const close = Math.abs(foldSteps(liveRel - expected)) <= RELATIVE_STEPS
+  const points = trail
+    .map((rel, index) => {
+      const x = padX + column * colW + 8 + ((colW - 16) * index) / Math.max(trail.length - 1, 1)
+      return `${x.toFixed(1)},${clampY(yOf(rel), padY, padY + innerH).toFixed(1)}`
+    })
+    .join(' ')
+  if (points) {
+    laneEl.append(svgEl('polyline', {
+      points,
+      fill: 'none',
+      stroke: 'rgba(244, 240, 230, 0.75)',
+      'stroke-width': '2.5',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    }))
+  }
+  laneEl.append(svgEl('circle', {
+    cx: String(padX + column * colW + colW / 2),
+    cy: String(clampY(yOf(liveRel), padY, padY + innerH)),
+    r: '7',
+    fill: close ? '#d6e07a' : '#f4f0e6',
+  }))
+}
+
+function foldSteps(error: number): number {
+  let diff = error
+  while (diff > 6) diff -= 12
+  while (diff < -6) diff += 12
+  return diff
+}
+
+function clampY(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function svgEl(name: string, attrs: Record<string, string>): SVGElement {
+  const node = document.createElementNS(SVG_NS, name)
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value)
+  return node
 }
 
 function renderMeter(rms: number): void {

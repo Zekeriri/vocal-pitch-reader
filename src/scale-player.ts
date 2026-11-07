@@ -132,7 +132,7 @@ export async function playMidiSequence(
   midis: number[],
   onIndex: (index: number) => void,
   signal: AbortSignal,
-  noteSeconds?: number,
+  noteSeconds?: number | readonly number[],
 ): Promise<void> {
   const ready = await engine()
   if (signal.aborted) return
@@ -144,7 +144,9 @@ export async function playMidiSequence(
     for (let index = 0; index < midis.length; index += 1) {
       if (signal.aborted) return
       onIndex(index)
-      const seconds = noteSeconds ?? readSettings().noteSeconds
+      const seconds = Array.isArray(noteSeconds)
+        ? noteSeconds[index]
+        : (noteSeconds ?? readSettings().noteSeconds)
       playOne(ready, midis[index], seconds)
       await wait(seconds * 1000 + 40, signal)
     }
