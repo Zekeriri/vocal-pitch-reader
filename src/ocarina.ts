@@ -1,5 +1,12 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { clampPhraseShift, hearSongNote, phraseShiftBounds, songById, transposePhrase } from './ocarina-songs.ts'
+import {
+  advanceSong,
+  clampPhraseShift,
+  phraseShiftBounds,
+  pitchClass,
+  songById,
+  transposePhrase,
+} from './ocarina-songs.ts'
 import { formatNote, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
@@ -29,6 +36,7 @@ let shift = readShift()
 let shiftSong = ''
 let phase: Phase = 'idle'
 let step = 0
+let heldClass: number | null = null
 let playIndex = -1
 let token = 0
 let abort: AbortController | null = null
@@ -38,34 +46,14 @@ const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
   if (phase !== 'singing' || detection.speaking) return
   const { result } = detection
-  if (result.freq == null) return
-  if (!result.stable) {
-    if (result.note) noteEl.textContent = formatNote(result.note)
-    noteEl.className = 'note is-live'
-    detailEl.textContent = '再稳一下'
-    extraEl.textContent = ''
+  if (result.midi == null || !result.stable) {
+    if (result.midi == null) heldClass = null
     return
   }
-  const hear = hearSongNote(result.freq, phrase()[step])
-  if (hear === 'match') {
-    noteEl.textContent = noteName(phrase()[step])
-    noteEl.className = 'note is-tuned'
-    detailEl.textContent = '过了'
-    extraEl.textContent = ''
-    advance()
-    return
-  }
-  if (hear === 'wrong') {
-    noteEl.textContent = '不对'
-    noteEl.className = 'note is-stable'
-    detailEl.textContent = detection.result.note ? `唱成了 ${formatNote(detection.result.note)}` : '换一个音'
-    extraEl.textContent = '不对'
-    return
-  }
-  noteEl.textContent = hear === 'low' ? '低了' : '高了'
-  noteEl.className = 'note is-stable'
-  detailEl.textContent = `这个音是 ${noteName(phrase()[step])}`
-  extraEl.textContent = hear === 'low' ? '低了' : '高了'
+  const sungClass = pitchClass(result.midi)
+  if (sungClass === heldClass) return
+  heldClass = sungClass
+  takeNote(result.midi)
 }, () => {
   if (expectStop || phase !== 'singing') return
   phase = 'idle'
@@ -108,6 +96,7 @@ export function stopOcarina(): void {
   silenceSpeech()
   phase = 'idle'
   step = 0
+  heldClass = null
   playIndex = -1
   render()
 }
@@ -125,6 +114,7 @@ function choose(id: string): void {
   localStorage.setItem(SHIFT_KEY, String(shift))
   phase = 'idle'
   step = 0
+  heldClass = null
   render()
 }
 
@@ -162,6 +152,8 @@ async function present(): Promise<void> {
   }
   if (controller.signal.aborted || run !== token) return
   playIndex = -1
+  step = 0
+  heldClass = null
   phase = 'singing'
   render()
   try {
@@ -182,10 +174,12 @@ async function present(): Promise<void> {
   }
 }
 
-function advance(): void {
+function takeNote(midi: number): void {
   if (phase !== 'singing') return
-  step += 1
-  if (step >= phrase().length) {
+  const notes = phrase()
+  const next = advanceSong(step, midi, notes)
+  if (next >= notes.length) {
+    step = notes.length
     token += 1
     phase = 'learned'
     haltMic()
@@ -193,7 +187,13 @@ function advance(): void {
     speakChinese('学会了')
     return
   }
-  render()
+  const matched = next > step
+  step = next
+  noteEl.textContent = noteName(Math.round(midi))
+  noteEl.className = matched ? 'note is-tuned' : 'note is-stable'
+  detailEl.textContent = matched ? '记下了' : '重来'
+  extraEl.textContent = matched ? '' : '重来'
+  paintNotes()
 }
 
 function finish(): void {
@@ -203,6 +203,7 @@ function finish(): void {
   silenceSpeech()
   phase = 'idle'
   step = 0
+  heldClass = null
   playIndex = -1
   render()
 }
@@ -216,7 +217,6 @@ function haltMic(): void {
 
 function render(): void {
   const busy = phase === 'playing' || phase === 'singing'
-  const notes = phrase()
   replayButton.disabled = !busy
   fillShift(busy)
   for (const button of songButtons) {
@@ -238,9 +238,9 @@ function render(): void {
     detailEl.textContent = '先听整首'
     extraEl.textContent = ''
   } else if (phase === 'singing') {
-    noteEl.textContent = noteName(notes[step])
+    noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = `哼第 ${step + 1} 个音，哼准再继续`
+    detailEl.textContent = '按顺序把六个音哼出来'
     extraEl.textContent = ''
   } else if (phase === 'learned') {
     noteEl.textContent = '学会了'

@@ -1,4 +1,4 @@
-import { freqToMidi, nameToMidi } from './pitch.ts'
+import { nameToMidi } from './pitch.ts'
 
 export type SongId = 'lullaby' | 'epona'
 
@@ -8,10 +8,6 @@ export type OcarinaSong = {
   notes: number[]
 }
 
-export type SongHear = 'match' | 'low' | 'high' | 'wrong'
-
-const MATCH_CENTS = 25
-const WRONG_CENTS = 50
 const PHRASE_LOW = 45
 const PHRASE_HIGH = 74
 
@@ -63,12 +59,15 @@ export function transposePhrase(notes: readonly number[], shift: number): number
   return notes.map((midi) => midi + clamped)
 }
 
-export function hearSongNote(freq: number, targetMidi: number, tolerance = MATCH_CENTS): SongHear {
-  const sung = freqToMidi(freq)
-  let cents = (sung - targetMidi) * 100
-  const lower = (sung - (targetMidi - 12)) * 100
-  if (Math.abs(lower) < Math.abs(cents)) cents = lower
-  if (Math.abs(cents) <= tolerance) return 'match'
-  if (Math.abs(cents) <= WRONG_CENTS) return cents > 0 ? 'high' : 'low'
-  return 'wrong'
+export function pitchClass(midi: number): number {
+  return ((Math.round(midi) % 12) + 12) % 12
+}
+
+export function advanceSong(progress: number, sungMidi: number, notes: readonly number[]): number {
+  if (notes.length === 0) return 0
+  const sung = pitchClass(sungMidi)
+  const index = Math.min(Math.max(progress, 0), notes.length - 1)
+  if (sung === pitchClass(notes[index])) return progress + 1
+  if (sung === pitchClass(notes[0])) return 1
+  return 0
 }
