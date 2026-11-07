@@ -236,21 +236,20 @@
       <header>
         <p class="eyebrow">环倾</p>
         <h1>三个训练</h1>
-        <p class="lede">先短短滑下来，再重复短音，最后把音拉长。</p>
+        <p class="lede">从 C4 到 C5，一个音一个音练。</p>
       </header>
       <div class="modes exercise-switch" role="group" aria-label="环倾训练">
         <button class="mode" id="tilt-tab-slide" type="button" aria-pressed="true">短音下滑</button>
         <button class="mode" id="tilt-tab-repeat" type="button" aria-pressed="false">短音重复</button>
         <button class="mode" id="tilt-tab-long" type="button" aria-pressed="false">长音</button>
       </div>
-      <p id="tilt-brief" class="hint">用真声，从 C5 滑到 C4。这一下不超过 1 秒。</p>
-      <div class="range-pick">
-        <label id="tilt-pitch-label" hidden>
-          音高
-          <select id="tilt-pitch"></select>
-        </label>
-        <button id="tilt-hear" class="ghost" type="button">听 C5 到 C4</button>
+      <p id="tilt-place" class="group-label">C4 · 1 / 13</p>
+      <div id="tilt-notes" class="scale-row" role="list" aria-label="从 C4 到 C5"></div>
+      <div class="actions">
+        <button id="tilt-prev" class="ghost" type="button">上一个音</button>
+        <button id="tilt-next" class="ghost" type="button">下一个音</button>
       </div>
+      <p id="tilt-brief" class="hint">用真声。碰一下这个高音，再滑向低音。高音不超过 1 秒。</p>
       <svg id="tilt-wave" class="tilt-wave" viewBox="0 0 360 120" role="img" aria-label="音高"></svg>
       <ol id="tilt-dots" class="dots" aria-label="环倾次数" hidden></ol>
       <section class="readout ph-readout">
@@ -264,8 +263,9 @@
       </div>
       <div class="actions">
         <button id="tilt-start" class="primary" type="button">开始</button>
+        <button id="tilt-hear" class="ghost" type="button">听 C4</button>
       </div>
-      <p class="hint">短音下滑固定在 C5 到 C4。后两项自己选音。请戴耳机，免得钢琴声被算进去。</p>
+      <p class="hint">三个练习都是 C4 到 C5 的每一个音。短音下滑只要求高音那一下不超过 1 秒，然后滑向低音。请戴耳机。</p>
       <p id="tilt-status" class="status" role="status"></p>
     </main>
 
@@ -307,7 +307,7 @@
           <span id="gate-value">适中</span>
         </label>
         <p>
-          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾的短音看这一下有多长，长音要自己站住 3 秒。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾从 C4 走到 C5。短音下滑的高音不超过 1 秒，长音要自己站住 3 秒。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
         </p>
       </section>
       <p id="settings-status" class="status" role="status"></p>

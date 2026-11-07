@@ -181,30 +181,41 @@ input {
   list-style: none;
 }
 
-.scale-row li {
+.scale-row li,
+.scale-row button {
   min-width: 3.2rem;
   padding: 0.45rem 0.4rem;
   border-radius: 0.75rem;
+  border: 0;
   background: var(--raise);
   color: var(--muted);
   text-align: center;
+  font: inherit;
   font-variant-numeric: tabular-nums;
 }
 
-.scale-row li.is-peak {
+.scale-row button {
+  cursor: pointer;
+}
+
+.scale-row li.is-peak,
+.scale-row button.is-peak {
   box-shadow: inset 0 0 0 1px var(--amber);
 }
 
-.scale-row li.is-now {
+.scale-row li.is-now,
+.scale-row button.is-now {
   background: var(--amber);
   color: var(--amber-ink);
 }
 
-.scale-row li.is-reached {
+.scale-row li.is-reached,
+.scale-row button.is-reached {
   color: var(--good);
 }
 
-.scale-row li.is-now.is-reached {
+.scale-row li.is-now.is-reached,
+.scale-row button.is-now.is-reached {
   color: var(--amber-ink);
 }
 

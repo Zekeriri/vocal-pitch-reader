@@ -3,22 +3,28 @@ export type PitchSample = {
   midi: number
 }
 
-export const SLIDE_FROM = 72
-export const SLIDE_TO = 60
-export const SLIDE_LIMIT_MS = 1000
+export const NOTE_LOW = 60
+export const NOTE_HIGH = 72
+export const PEAK_LIMIT_MS = 1000
+export const PEAK_WINDOW = 0.55
+export const SLIDE_DROP = 1.2
 export const TILT_MIN = 3
 export const TILT_GAP_MS = 220
 export const TILT_MIN_MS = 80
 export const TILT_MAX_MS = 1000
 export const LONG_MIN_MS = 3000
-export const PITCH_WINDOW = 1
+export const PITCH_WINDOW = PEAK_WINDOW
+
+export function scaleNotes(): number[] {
+  return Array.from({ length: NOTE_HIGH - NOTE_LOW + 1 }, (_, index) => NOTE_LOW + index)
+}
 
 export type SlideRead = {
-  durationMs: number
-  from: number | null
-  to: number | null
+  touched: boolean
+  peakMs: number
+  slid: boolean
   short: boolean
-  covered: boolean
+  passed: boolean
 }
 
 export type TiltRead = {
@@ -32,20 +38,22 @@ export type SustainRead = {
   away: boolean
 }
 
-export function readSlide(samples: readonly PitchSample[]): SlideRead {
-  if (samples.length < 3) {
-    return { durationMs: 0, from: null, to: null, short: false, covered: false }
+export function readSlide(samples: readonly PitchSample[], target: number, now = samples.at(-1)?.time ?? 0): SlideRead {
+  let touchAt: number | null = null
+  let leftAt: number | null = null
+  let slid = false
+  for (const sample of samples) {
+    if (touchAt == null) {
+      if (Math.abs(sample.midi - target) <= PEAK_WINDOW) touchAt = sample.time
+      continue
+    }
+    if (leftAt == null && sample.midi < target - PEAK_WINDOW) leftAt = sample.time
+    if (sample.midi <= target - SLIDE_DROP) slid = true
   }
-  const durationMs = samples[samples.length - 1].time - samples[0].time
-  const from = average(samples.slice(0, Math.max(1, Math.ceil(samples.length * 0.25))))
-  const to = average(samples.slice(Math.floor(samples.length * 0.75)))
-  return {
-    durationMs,
-    from,
-    to,
-    short: durationMs >= 120 && durationMs <= SLIDE_LIMIT_MS,
-    covered: from >= SLIDE_FROM - 3 && to <= SLIDE_TO + 4 && from - to >= 5,
-  }
+  if (touchAt == null) return { touched: false, peakMs: 0, slid: false, short: false, passed: false }
+  const peakMs = Math.max(0, (leftAt ?? now) - touchAt)
+  const short = peakMs <= PEAK_LIMIT_MS
+  return { touched: true, peakMs, slid, short, passed: short && slid }
 }
 
 export function readTilts(samples: readonly PitchSample[], target: number, now: number): TiltRead {
@@ -110,10 +118,6 @@ function bursts(samples: readonly PitchSample[], gapMs: number): PitchSample[][]
     else last.push(sample)
   }
   return groups
-}
-
-function average(samples: readonly PitchSample[]): number {
-  return samples.reduce((sum, sample) => sum + sample.midi, 0) / samples.length
 }
 
 function median(samples: readonly PitchSample[]): number {
