@@ -147,10 +147,7 @@ function move(delta: number): boolean {
 
 async function playNext(): Promise<void> {
   if (!move(1)) return
-  const played = await playScale()
-  if (!played) return
-  phase = 'idle'
-  render()
+  await run()
 }
 
 async function run(): Promise<void> {
