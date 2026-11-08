@@ -1,30 +1,23 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { formatNote, freqToMidi, midiToName } from './pitch.ts'
+import { formatNote, midiToName } from './pitch.ts'
 import { PeakHold } from './scales.ts'
 import { playMidiSequence } from './scale-player.ts'
-import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
+import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakNote } from './speak.ts'
-import {
-  LONG_MIN_MS,
-  TILT_MIN,
-  readSlide,
-  readSustain,
-  readTilts,
-  scaleNotes,
-  type PitchSample,
-} from './tilt-read.ts'
+import { tiltPeakHoldMs } from './tilt-hold.ts'
 
-const EXERCISE_KEY = 'pitch-reader-tilt-exercise'
 const STEP_KEY = 'pitch-reader-tilt-step'
-const SLIDE_RESET_MS = 450
+const NOTE_LOW = 60
+const NOTE_HIGH = 72
+const NOTES = Array.from({ length: NOTE_HIGH - NOTE_LOW + 1 }, (_, index) => NOTE_LOW + index)
 const PASS_QUIET_MS = 700
-const NOTES = scaleNotes()
+const HOLD_GAP_MS = 120
 
 const noteEl = document.querySelector<HTMLElement>('#tilt-note')!
 const detailEl = document.querySelector<HTMLElement>('#tilt-detail')!
 const extraEl = document.querySelector<HTMLElement>('#tilt-extra')!
-const briefEl = document.querySelector<HTMLElement>('#tilt-brief')!
 const placeEl = document.querySelector<HTMLElement>('#tilt-place')!
+const hintEl = document.querySelector<HTMLElement>('#tilt-hint')!
 const levelEl = document.querySelector<HTMLElement>('#tilt-level')!
 const gateMarkEl = document.querySelector<HTMLElement>('#tilt-gate')!
 const startButton = document.querySelector<HTMLButtonElement>('#tilt-start')!
@@ -33,17 +26,10 @@ const prevButton = document.querySelector<HTMLButtonElement>('#tilt-prev')!
 const nextButton = document.querySelector<HTMLButtonElement>('#tilt-next')!
 const statusEl = document.querySelector<HTMLElement>('#tilt-status')!
 const notesEl = document.querySelector<HTMLElement>('#tilt-notes')!
-const dotsEl = document.querySelector<HTMLOListElement>('#tilt-dots')!
-const slideTab = document.querySelector<HTMLButtonElement>('#tilt-tab-slide')!
-const repeatTab = document.querySelector<HTMLButtonElement>('#tilt-tab-repeat')!
-const longTab = document.querySelector<HTMLButtonElement>('#tilt-tab-long')!
 
-type Exercise = 'slide' | 'repeat' | 'long'
 type Phase = 'idle' | 'playing' | 'listening'
 
 let phase: Phase = 'idle'
-let samples: PitchSample[] = []
-let boutOrigin = 0
 let quietSince: number | null = null
 let expectStop = false
 let abort: AbortController | null = null
@@ -54,22 +40,20 @@ let chainDone = false
 let cleared = false
 let liveLabel: string | null = null
 let liveStable = false
+let pendingMidi: number | null = null
+let pendingSince = 0
+let gapSince: number | null = null
 const peak = new PeakHold()
-let exercise: Exercise = storedChoice(EXERCISE_KEY, ['slide', 'repeat', 'long'], 'slide')
 let step = storedStep()
-const done: Record<Exercise, boolean[]> = {
-  slide: NOTES.map(() => false),
-  repeat: NOTES.map(() => false),
-  long: NOTES.map(() => false),
-}
+let done = NOTES.map(() => false)
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
   if (phase !== 'listening' || advancing) return
   const now = performance.now()
   if (detection.result.freq == null) {
-    if (samples.length > 0 && quietSince == null) quietSince = now
-    markIfCleared()
+    if (cleared && quietSince == null) quietSince = now
+    trackHold(null, now)
     if (cleared && quietSince != null && now - quietSince >= PASS_QUIET_MS) {
       void advance()
       return
@@ -77,17 +61,10 @@ const listener = new PitchListener((detection) => {
     render()
     return
   }
-  if (exercise === 'slide' && !cleared && quietSince != null && now - quietSince >= SLIDE_RESET_MS && samples.length > 0) {
-    samples = []
-  }
   quietSince = null
-  if (samples.length === 0) boutOrigin = now
-  liveLabel = detection.result.note
-  liveStable = detection.result.stable
-  peak.push(detection.result.midi, detection.result.stable)
-  samples.push({ time: now - boutOrigin, midi: freqToMidi(detection.result.freq) })
-  if (samples.length > 4000) samples.splice(0, samples.length - 4000)
-  markIfCleared()
+  const midi = detection.result.midi
+  liveLabel = detection.result.note ?? (midi == null ? null : midiToName(midi))
+  trackHold(midi, now)
   render()
 }, () => {
   if (expectStop || phase !== 'listening') return
@@ -99,10 +76,10 @@ subscribeSettings((settings) => {
   listener.rmsMin = gateToRms(settings.gate)
   listener.setHoldMs(settings.holdMs)
   gateMarkEl.style.left = `${gateMarkRatio(listener.rmsMin) * 100}%`
+  if (phase === 'idle' && !settled) render()
 })
 
 fillNotes()
-fillDots()
 render()
 
 startButton.addEventListener('click', () => {
@@ -113,9 +90,6 @@ hearButton.addEventListener('click', () => {
 })
 prevButton.addEventListener('click', () => move(-1))
 nextButton.addEventListener('click', () => move(1))
-slideTab.addEventListener('click', () => setExercise('slide'))
-repeatTab.addEventListener('click', () => setExercise('repeat'))
-longTab.addEventListener('click', () => setExercise('long'))
 
 export function handleTiltSpace(): void {
   if (phase === 'playing') return
@@ -134,7 +108,7 @@ export function stopTilt(): void {
 async function begin(): Promise<void> {
   if (phase === 'playing' || phase === 'listening') return
   if (chainDone) {
-    done[exercise] = NOTES.map(() => false)
+    done = NOTES.map(() => false)
     step = 0
     localStorage.setItem(STEP_KEY, String(step))
     chainDone = false
@@ -152,13 +126,12 @@ async function present(): Promise<void> {
   phase = 'playing'
   statusEl.textContent = ''
   render()
-  const lengths = exercise === 'slide' ? [0.45] : undefined
   try {
     await playMidiSequence([currentMidi()], () => {
       noteEl.textContent = formatNote(midiToName(currentMidi()))
       noteEl.className = 'note is-live'
       detailEl.textContent = '听这个音，然后唱'
-    }, controller.signal, lengths)
+    }, controller.signal)
   } catch (error) {
     if (controller.signal.aborted || run !== token) return
     phase = 'idle'
@@ -220,9 +193,8 @@ async function hear(): Promise<void> {
   abort = controller
   hearButton.disabled = true
   statusEl.textContent = ''
-  const lengths = exercise === 'slide' ? [0.45] : undefined
   try {
-    await playMidiSequence([currentMidi()], () => {}, controller.signal, lengths)
+    await playMidiSequence([currentMidi()], () => {}, controller.signal)
   } catch (error) {
     if (!controller.signal.aborted) {
       statusEl.textContent = error instanceof Error ? error.message : '没播出来。'
@@ -251,14 +223,6 @@ function selectNote(index: number): void {
   render()
 }
 
-function setExercise(next: Exercise): void {
-  if (phase === 'playing' || phase === 'listening') return
-  exercise = next
-  localStorage.setItem(EXERCISE_KEY, exercise)
-  clearTake()
-  render()
-}
-
 function finishTake(speak: boolean): void {
   token += 1
   abort?.abort()
@@ -273,67 +237,60 @@ function finishTake(speak: boolean): void {
 }
 
 function clearTake(): void {
-  samples = []
-  boutOrigin = 0
   quietSince = null
   settled = false
   chainDone = false
   cleared = false
   liveLabel = null
   liveStable = false
+  pendingMidi = null
+  pendingSince = 0
+  gapSince = null
   peak.reset()
 }
 
-function markIfCleared(): void {
-  if (cleared || samples.length === 0) return
-  const midi = currentMidi()
-  const now = sampleNow()
-  const ok = exercise === 'slide'
-    ? readSlide(samples, midi, now)?.passed === true
-    : exercise === 'repeat'
-      ? readTilts(samples, midi, now).count >= TILT_MIN
-      : readSustain(samples, midi, now).heldMs > LONG_MIN_MS
-  if (!ok) return
+function trackHold(midi: number | null, now: number): void {
+  if (midi == null) {
+    if (gapSince == null) gapSince = now
+    if (now - gapSince >= HOLD_GAP_MS) pendingMidi = null
+    return
+  }
+  gapSince = null
+  const rounded = Math.round(midi)
+  if (rounded !== pendingMidi) {
+    pendingMidi = rounded
+    pendingSince = now
+    liveStable = false
+    return
+  }
+  const ready = now - pendingSince >= tiltPeakHoldMs(readSettings().holdMs)
+  liveStable = ready
+  if (!ready) return
+  peak.push(rounded, true)
   cleared = true
-  done[exercise][step] = true
+  done[step] = true
 }
 
 function currentMidi(): number {
   return NOTES[step] ?? NOTES[0]
 }
 
-function sampleNow(): number {
-  if (phase === 'listening' && samples.length > 0) return performance.now() - boutOrigin
-  return samples[samples.length - 1]?.time ?? 0
-}
-
 function render(): void {
-  const midi = currentMidi()
-  const now = sampleNow()
-  const name = formatNote(midiToName(midi))
+  const name = formatNote(midiToName(currentMidi()))
   const busy = phase === 'playing' || phase === 'listening'
-  slideTab.setAttribute('aria-pressed', exercise === 'slide' ? 'true' : 'false')
-  repeatTab.setAttribute('aria-pressed', exercise === 'repeat' ? 'true' : 'false')
-  longTab.setAttribute('aria-pressed', exercise === 'long' ? 'true' : 'false')
-  slideTab.disabled = busy
-  repeatTab.disabled = busy
-  longTab.disabled = busy
   placeEl.textContent = `${name} · ${step + 1} / ${NOTES.length}`
+  hintEl.textContent = `先放这个音，再唱。最高音要稳住 ${holdLabel()}才记，比咽音练习更久。松开后自动到下一个音，再放音，再录音。请戴耳机。`
   hearButton.textContent = `听 ${name}`
   hearButton.disabled = busy
   prevButton.disabled = busy || step === 0
   nextButton.disabled = busy || step === NOTES.length - 1
   startButton.disabled = phase === 'playing'
   startButton.textContent = phase === 'playing' ? '正在播放…' : phase === 'listening' ? '唱完了' : chainDone ? '再来一次' : '播放并跟唱'
-  dotsEl.hidden = exercise !== 'repeat'
-  briefEl.textContent = briefFor()
   paintNotes()
-
-  const status = exercise === 'slide' ? slideStatus(midi, now) : exercise === 'repeat' ? repeatStatus(midi, now) : longStatus(midi, now)
-  paintPitch(status)
+  paintPitch()
 }
 
-function paintPitch(status: string): void {
+function paintPitch(): void {
   if (phase === 'playing') {
     noteEl.textContent = formatNote(midiToName(currentMidi()))
     noteEl.className = 'note is-live'
@@ -349,10 +306,10 @@ function paintPitch(status: string): void {
       noteEl.textContent = '·'
       noteEl.className = 'note is-empty'
     }
-    detailEl.textContent = status
+    detailEl.textContent = cleared ? '最高音记下了' : '再稳一下才记最高音'
     extraEl.textContent = cleared
       ? step >= NOTES.length - 1 ? '松开，这一串就结束' : '松开，到下一个音'
-      : liveLabel && !liveStable ? '再稳一下才记最高音' : peakText()
+      : peakText()
     return
   }
   if (settled) {
@@ -367,12 +324,12 @@ function paintPitch(status: string): void {
     noteEl.textContent = name
     noteEl.className = 'note is-stable'
     detailEl.textContent = `最高 ${name}`
-    extraEl.textContent = chainDone ? '这一串练完了' : status.startsWith('点') ? '' : status
+    extraEl.textContent = chainDone ? '这一串练完了' : ''
     return
   }
   noteEl.textContent = '·'
   noteEl.className = 'note is-empty'
-  detailEl.textContent = status
+  detailEl.textContent = '点播放并跟唱，把最高音稳住'
   extraEl.textContent = ''
 }
 
@@ -381,42 +338,9 @@ function peakText(): string {
   return `最高 ${formatNote(midiToName(peak.highest))}`
 }
 
-function slideStatus(midi: number, now: number): string {
-  const read = samples.length > 0 ? readSlide(samples, midi, now) : null
-  if (read?.passed) done.slide[step] = true
-  if (!read?.touched) return phase === 'listening' ? '先碰到这个高音' : '点播放并跟唱，碰一下再滑下去'
-  if (read.passed) return '高音够短'
-  if (!read.short) return '高音太长了'
-  return '滑向低音'
-}
-
-function repeatStatus(midi: number, now: number): string {
-  const read = samples.length > 0 ? readTilts(samples, midi, now) : { count: 0, openTooLong: false }
-  if (read.count >= TILT_MIN) done.repeat[step] = true
-  const dots = dotsEl.querySelectorAll('li')
-  dots.forEach((dot, index) => {
-    dot.classList.toggle('is-done', index < read.count)
-    dot.classList.toggle('is-now', phase === 'listening' && index === read.count && read.count < TILT_MIN)
-  })
-  if (read.openTooLong) return '这一下太长了，收掉再来'
-  if (read.count >= TILT_MIN) return '三次了'
-  if (phase === 'listening') return read.count > 0 ? '继续，至少三次' : '短短地环倾一下'
-  return '点播放并跟唱，至少三次环倾'
-}
-
-function longStatus(midi: number, now: number): string {
-  const read = samples.length > 0 ? readSustain(samples, midi, now) : { heldMs: 0, live: false, away: false }
-  if (read.heldMs > LONG_MIN_MS) done.long[step] = true
-  if (read.heldMs > LONG_MIN_MS) return '超过 1 秒了'
-  if (read.away) return '音离开了，再站住'
-  if (phase === 'listening') return '站住，超过 1 秒'
-  return '点播放并跟唱，站住超过 1 秒'
-}
-
-function briefFor(): string {
-  if (exercise === 'slide') return '用真声。碰一下这个高音，再滑向低音。高音不超过 1 秒。'
-  if (exercise === 'repeat') return '在这个音上做短音。每次算一次环倾，至少三次。'
-  return '在这个音上站住，超过 1 秒。'
+function holdLabel(): string {
+  const seconds = tiltPeakHoldMs(readSettings().holdMs) / 1000
+  return `${seconds.toFixed(2).replace(/0$/, '').replace(/\.0$/, '')} 秒`
 }
 
 function fillNotes(): void {
@@ -433,18 +357,10 @@ function paintNotes(): void {
   const buttons = notesEl.querySelectorAll('button')
   buttons.forEach((button, index) => {
     button.classList.toggle('is-now', index === step)
-    button.classList.toggle('is-reached', done[exercise][index] === true)
+    button.classList.toggle('is-reached', done[index] === true)
     button.disabled = phase === 'playing' || phase === 'listening'
     button.setAttribute('aria-pressed', index === step ? 'true' : 'false')
   })
-}
-
-function fillDots(): void {
-  for (let index = 1; index <= TILT_MIN; index += 1) {
-    const item = document.createElement('li')
-    item.textContent = String(index)
-    dotsEl.append(item)
-  }
 }
 
 function renderMeter(rms: number): void {
@@ -465,9 +381,4 @@ function storedStep(): number {
   const value = raw == null || raw === '' ? 0 : Number(raw)
   if (!Number.isInteger(value) || value < 0 || value >= NOTES.length) return 0
   return value
-}
-
-function storedChoice<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  const raw = localStorage.getItem(key)
-  return allowed.find((item) => item === raw) ?? fallback
 }
