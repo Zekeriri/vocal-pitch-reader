@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readVibrato, speedForRate } from './vibrato-read.ts'
+import { displayCents, displayWaveY, readVibrato, speedForRate } from './vibrato-read.ts'
 
 function wave(hz: number, cents: number, seconds: number, step = 0.02) {
   const samples = []
@@ -24,6 +24,16 @@ describe('vibrato reading', () => {
     expect(speedForRate(5.2)).toBe('fast')
     expect(speedForRate(6)).toBe('faster')
     expect(speedForRate(2.4)).toBeNull()
+  })
+
+  it('draws a vibrato inside the middle of the chart', () => {
+    const cents = Array.from({ length: 40 }, (_, index) => 80 * Math.sin(index / 3) + (index % 5 === 0 ? 70 : 0))
+    const ys = displayCents(cents).map((value) => displayWaveY(value))
+    const reach = Math.max(...ys.map((y) => Math.abs(y - 60)))
+    expect(reach).toBeGreaterThan(8)
+    expect(reach).toBeLessThan(28)
+    expect(Math.max(...ys)).toBeLessThan(106)
+    expect(Math.min(...ys)).toBeGreaterThan(14)
   })
 
   it('ignores a tone that is not waving', () => {

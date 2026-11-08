@@ -5,6 +5,8 @@ import {
   CYCLE_MARKS,
   CYCLE_MIN,
   SPEEDS,
+  displayCents,
+  displayWaveY,
   readVibrato,
   speedForRate,
   type VibratoRead,
@@ -274,20 +276,42 @@ function paintWave(bout: readonly VibratoSample[]): void {
   const windowed = bout.filter((sample) => sample.time >= end - WAVE_MS)
   const center = windowed.reduce((sum, sample) => sum + sample.midi, 0) / windowed.length
   const start = end - WAVE_MS
-  const points = windowed.map((sample) => {
-    const x = 8 + ((sample.time - start) / WAVE_MS) * 344
-    const cents = (sample.midi - center) * 100
-    const y = Math.min(112, Math.max(8, 60 - (cents / 80) * 48))
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  })
-  const line = document.createElementNS(SVG_NS, 'polyline')
-  line.setAttribute('points', points.join(' '))
+  const cents = displayCents(windowed.map((sample) => (sample.midi - center) * 100))
+  const points = windowed.map((sample, index) => ({
+    x: 8 + ((sample.time - start) / WAVE_MS) * 344,
+    y: displayWaveY(cents[index]),
+  }))
+  const line = document.createElementNS(SVG_NS, 'path')
+  line.setAttribute('d', smoothWavePath(points))
   line.setAttribute('fill', 'none')
   line.setAttribute('stroke', '#f0b429')
   line.setAttribute('stroke-width', '2.5')
   line.setAttribute('stroke-linejoin', 'round')
   line.setAttribute('stroke-linecap', 'round')
   waveEl.append(line)
+}
+
+function smoothWavePath(points: readonly { x: number; y: number }[]): string {
+  const first = points[0]
+  if (!first) return ''
+  if (points.length === 1) return `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`
+  let path = `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const before = points[Math.max(0, index - 1)]
+    const current = points[index]
+    const next = points[index + 1]
+    const after = points[Math.min(points.length - 1, index + 2)]
+    const controlA = {
+      x: current.x + (next.x - before.x) / 6,
+      y: current.y + (next.y - before.y) / 6,
+    }
+    const controlB = {
+      x: next.x - (after.x - current.x) / 6,
+      y: next.y - (after.y - current.y) / 6,
+    }
+    path += ` C ${controlA.x.toFixed(1)} ${controlA.y.toFixed(1)}, ${controlB.x.toFixed(1)} ${controlB.y.toFixed(1)}, ${next.x.toFixed(1)} ${next.y.toFixed(1)}`
+  }
+  return path
 }
 
 function renderMeter(rms: number): void {
