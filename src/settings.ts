@@ -2,12 +2,14 @@ export const HOLD_KEY = 'pitch-reader-hold'
 export const GATE_KEY = 'pitch-reader-gate'
 export const NOTE_KEY = 'pitch-reader-note-seconds'
 export const VOLUME_KEY = 'pitch-reader-piano-volume'
+export const VOICE_KEY = 'pitch-reader-voice'
 
 export type PracticeSettings = {
   holdMs: number
   gate: number
   noteSeconds: number
   pianoVolume: number
+  voicePrompts: boolean
 }
 
 type SettingsInput = {
@@ -15,6 +17,7 @@ type SettingsInput = {
   gate: number | null
   noteSeconds: number | null
   pianoVolume: number | null
+  voicePrompts: boolean | null
 }
 
 const listeners = new Set<(settings: PracticeSettings) => void>()
@@ -27,6 +30,7 @@ export function normalizeSettings(input: SettingsInput): PracticeSettings {
     gate: clamp(input.gate, 1, 40, 8),
     noteSeconds: roundTenth(clamp(input.noteSeconds, 0.4, 4, 1.2)),
     pianoVolume: Math.round(clamp(input.pianoVolume, 0, 100, 80)),
+    voicePrompts: input.voicePrompts ?? true,
   }
 }
 
@@ -53,6 +57,7 @@ export function updateSettings(patch: Partial<PracticeSettings>): void {
     gate: patch.gate ?? current.gate,
     noteSeconds: patch.noteSeconds ?? current.noteSeconds,
     pianoVolume: patch.pianoVolume ?? current.pianoVolume,
+    voicePrompts: patch.voicePrompts ?? current.voicePrompts,
   })
   const store = storage()
   if (store) {
@@ -60,18 +65,20 @@ export function updateSettings(patch: Partial<PracticeSettings>): void {
     store.setItem(GATE_KEY, String(current.gate))
     store.setItem(NOTE_KEY, String(current.noteSeconds))
     store.setItem(VOLUME_KEY, String(current.pianoVolume))
+    store.setItem(VOICE_KEY, current.voicePrompts ? '1' : '0')
   }
   for (const listener of listeners) listener(current)
 }
 
 function readStored(): SettingsInput {
   const store = storage()
-  if (!store) return { hold: null, gate: null, noteSeconds: null, pianoVolume: null }
+  if (!store) return { hold: null, gate: null, noteSeconds: null, pianoVolume: null, voicePrompts: null }
   return {
     hold: numberOrNull(store.getItem(HOLD_KEY)),
     gate: numberOrNull(store.getItem(GATE_KEY)),
     noteSeconds: numberOrNull(store.getItem(NOTE_KEY)),
     pianoVolume: numberOrNull(store.getItem(VOLUME_KEY)),
+    voicePrompts: booleanOrNull(store.getItem(VOICE_KEY)),
   }
 }
 
@@ -81,6 +88,13 @@ function storage(): Storage | null {
   } catch {
     return null
   }
+}
+
+function booleanOrNull(value: string | null): boolean | null {
+  if (value == null || value === '') return null
+  if (value === '1' || value === 'true') return true
+  if (value === '0' || value === 'false') return false
+  return null
 }
 
 function numberOrNull(value: string | null): number | null {

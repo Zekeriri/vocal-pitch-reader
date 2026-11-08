@@ -1,4 +1,5 @@
 import { nameToSpeech } from './pitch.ts'
+import { readSettings } from './settings.ts'
 
 export function prepareSpeech(): void {
   if (!('speechSynthesis' in window)) return
@@ -33,7 +34,7 @@ export function speakNote(note: string): boolean {
 }
 
 export function speakChinese(text: string): boolean {
-  if (!canSpeak()) return false
+  if (!canSpeak() || !readSettings().voicePrompts) return false
   const synth = window.speechSynthesis
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.lang = 'zh-CN'
