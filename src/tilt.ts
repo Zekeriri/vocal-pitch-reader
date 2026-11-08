@@ -3,7 +3,7 @@ import { formatNote, freqToMidi, midiToName } from './pitch.ts'
 import { PeakHold } from './scales.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
-import { speakNote } from './speak.ts'
+import { silenceSpeech, speakNote } from './speak.ts'
 import {
   LONG_MIN_MS,
   TILT_MIN,
@@ -17,6 +17,7 @@ import {
 const EXERCISE_KEY = 'pitch-reader-tilt-exercise'
 const STEP_KEY = 'pitch-reader-tilt-step'
 const SLIDE_RESET_MS = 450
+const PASS_QUIET_MS = 700
 const NOTES = scaleNotes()
 
 const noteEl = document.querySelector<HTMLElement>('#tilt-note')!
@@ -38,7 +39,7 @@ const repeatTab = document.querySelector<HTMLButtonElement>('#tilt-tab-repeat')!
 const longTab = document.querySelector<HTMLButtonElement>('#tilt-tab-long')!
 
 type Exercise = 'slide' | 'repeat' | 'long'
-type Phase = 'idle' | 'listening'
+type Phase = 'idle' | 'playing' | 'listening'
 
 let phase: Phase = 'idle'
 let samples: PitchSample[] = []
@@ -46,7 +47,11 @@ let boutOrigin = 0
 let quietSince: number | null = null
 let expectStop = false
 let abort: AbortController | null = null
+let token = 0
+let advancing = false
 let settled = false
+let chainDone = false
+let cleared = false
 let liveLabel: string | null = null
 let liveStable = false
 const peak = new PeakHold()
@@ -60,14 +65,19 @@ const done: Record<Exercise, boolean[]> = {
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
-  if (phase !== 'listening') return
+  if (phase !== 'listening' || advancing) return
   const now = performance.now()
   if (detection.result.freq == null) {
     if (samples.length > 0 && quietSince == null) quietSince = now
+    markIfCleared()
+    if (cleared && quietSince != null && now - quietSince >= PASS_QUIET_MS) {
+      void advance()
+      return
+    }
     render()
     return
   }
-  if (exercise === 'slide' && quietSince != null && now - quietSince >= SLIDE_RESET_MS && samples.length > 0) {
+  if (exercise === 'slide' && !cleared && quietSince != null && now - quietSince >= SLIDE_RESET_MS && samples.length > 0) {
     samples = []
   }
   quietSince = null
@@ -77,6 +87,7 @@ const listener = new PitchListener((detection) => {
   peak.push(detection.result.midi, detection.result.stable)
   samples.push({ time: now - boutOrigin, midi: freqToMidi(detection.result.freq) })
   if (samples.length > 4000) samples.splice(0, samples.length - 4000)
+  markIfCleared()
   render()
 }, () => {
   if (expectStop || phase !== 'listening') return
@@ -95,7 +106,7 @@ fillDots()
 render()
 
 startButton.addEventListener('click', () => {
-  void toggle()
+  handleTiltSpace()
 })
 hearButton.addEventListener('click', () => {
   void hear()
@@ -107,34 +118,69 @@ repeatTab.addEventListener('click', () => setExercise('repeat'))
 longTab.addEventListener('click', () => setExercise('long'))
 
 export function handleTiltSpace(): void {
-  void toggle()
+  if (phase === 'playing') return
+  if (phase === 'listening') {
+    if (cleared) void advance()
+    else finishTake(true)
+    return
+  }
+  void begin()
 }
 
 export function stopTilt(): void {
   finishTake(false)
 }
 
-async function toggle(): Promise<void> {
-  if (phase === 'listening') {
-    finishTake(true)
+async function begin(): Promise<void> {
+  if (phase === 'playing' || phase === 'listening') return
+  if (chainDone) {
+    done[exercise] = NOTES.map(() => false)
+    step = 0
+    localStorage.setItem(STEP_KEY, String(step))
+    chainDone = false
+  }
+  await present()
+}
+
+async function present(): Promise<void> {
+  const run = ++token
+  abort?.abort()
+  const controller = new AbortController()
+  abort = controller
+  clearTake()
+  haltMic()
+  phase = 'playing'
+  statusEl.textContent = ''
+  render()
+  const lengths = exercise === 'slide' ? [0.45] : undefined
+  try {
+    await playMidiSequence([currentMidi()], () => {
+      noteEl.textContent = formatNote(midiToName(currentMidi()))
+      noteEl.className = 'note is-live'
+      detailEl.textContent = '听这个音，然后唱'
+    }, controller.signal, lengths)
+  } catch (error) {
+    if (controller.signal.aborted || run !== token) return
+    phase = 'idle'
+    statusEl.textContent = error instanceof Error ? error.message : '没播出来。'
+    render()
     return
   }
-  abort?.abort()
-  clearTake()
-  statusEl.textContent = ''
-  startButton.disabled = true
-  hearButton.disabled = true
-  startButton.textContent = '正在打开…'
+  if (controller.signal.aborted || run !== token) return
+  phase = 'listening'
+  render()
   try {
     const started = await listener.startMic()
+    if (run !== token) {
+      haltMic()
+      return
+    }
     if (!started) {
       phase = 'idle'
       render()
-      return
     }
-    phase = 'listening'
-    render()
   } catch (error) {
+    if (run !== token) return
     haltMic()
     phase = 'idle'
     statusEl.textContent = micErrorMessage(error)
@@ -142,8 +188,33 @@ async function toggle(): Promise<void> {
   }
 }
 
+async function advance(): Promise<void> {
+  if (advancing || phase !== 'listening') return
+  advancing = true
+  const run = token
+  const highest = peak.highest
+  const last = step >= NOTES.length - 1
+  try {
+    haltMic()
+    if (run !== token) return
+    if (last) {
+      phase = 'idle'
+      settled = true
+      chainDone = true
+      render()
+      if (highest != null) speakNote(midiToName(highest))
+      return
+    }
+    step += 1
+    localStorage.setItem(STEP_KEY, String(step))
+    await present()
+  } finally {
+    advancing = false
+  }
+}
+
 async function hear(): Promise<void> {
-  if (phase === 'listening') return
+  if (phase === 'playing' || phase === 'listening') return
   abort?.abort()
   const controller = new AbortController()
   abort = controller
@@ -162,6 +233,7 @@ async function hear(): Promise<void> {
 }
 
 function move(delta: number): void {
+  if (phase === 'playing' || phase === 'listening') return
   const next = Math.min(NOTES.length - 1, Math.max(0, step + delta))
   if (next === step) return
   step = next
@@ -171,6 +243,7 @@ function move(delta: number): void {
 }
 
 function selectNote(index: number): void {
+  if (phase === 'playing' || phase === 'listening') return
   if (index === step) return
   step = index
   localStorage.setItem(STEP_KEY, String(step))
@@ -179,6 +252,7 @@ function selectNote(index: number): void {
 }
 
 function setExercise(next: Exercise): void {
+  if (phase === 'playing' || phase === 'listening') return
   exercise = next
   localStorage.setItem(EXERCISE_KEY, exercise)
   clearTake()
@@ -186,15 +260,16 @@ function setExercise(next: Exercise): void {
 }
 
 function finishTake(speak: boolean): void {
+  token += 1
   abort?.abort()
   const wasListening = phase === 'listening'
   haltMic()
-  if (wasListening) {
-    phase = 'idle'
-    settled = true
-  }
+  silenceSpeech()
+  advancing = false
+  if (phase === 'listening' || phase === 'playing') phase = 'idle'
+  settled = wasListening
   render()
-  if (speak && peak.highest != null) speakNote(midiToName(peak.highest))
+  if (speak && wasListening && peak.highest != null) speakNote(midiToName(peak.highest))
 }
 
 function clearTake(): void {
@@ -202,34 +277,54 @@ function clearTake(): void {
   boutOrigin = 0
   quietSince = null
   settled = false
+  chainDone = false
+  cleared = false
   liveLabel = null
   liveStable = false
   peak.reset()
+}
+
+function markIfCleared(): void {
+  if (cleared || samples.length === 0) return
+  const midi = currentMidi()
+  const now = sampleNow()
+  const ok = exercise === 'slide'
+    ? readSlide(samples, midi, now)?.passed === true
+    : exercise === 'repeat'
+      ? readTilts(samples, midi, now).count >= TILT_MIN
+      : readSustain(samples, midi, now).heldMs > LONG_MIN_MS
+  if (!ok) return
+  cleared = true
+  done[exercise][step] = true
 }
 
 function currentMidi(): number {
   return NOTES[step] ?? NOTES[0]
 }
 
-function nowMs(): number {
+function sampleNow(): number {
   if (phase === 'listening' && samples.length > 0) return performance.now() - boutOrigin
   return samples[samples.length - 1]?.time ?? 0
 }
 
 function render(): void {
   const midi = currentMidi()
-  const now = nowMs()
+  const now = sampleNow()
   const name = formatNote(midiToName(midi))
+  const busy = phase === 'playing' || phase === 'listening'
   slideTab.setAttribute('aria-pressed', exercise === 'slide' ? 'true' : 'false')
   repeatTab.setAttribute('aria-pressed', exercise === 'repeat' ? 'true' : 'false')
   longTab.setAttribute('aria-pressed', exercise === 'long' ? 'true' : 'false')
+  slideTab.disabled = busy
+  repeatTab.disabled = busy
+  longTab.disabled = busy
   placeEl.textContent = `${name} · ${step + 1} / ${NOTES.length}`
   hearButton.textContent = `听 ${name}`
-  hearButton.disabled = phase === 'listening'
-  prevButton.disabled = step === 0
-  nextButton.disabled = step === NOTES.length - 1
-  startButton.disabled = false
-  startButton.textContent = phase === 'listening' ? '结束' : '开始'
+  hearButton.disabled = busy
+  prevButton.disabled = busy || step === 0
+  nextButton.disabled = busy || step === NOTES.length - 1
+  startButton.disabled = phase === 'playing'
+  startButton.textContent = phase === 'playing' ? '正在播放…' : phase === 'listening' ? '唱完了' : chainDone ? '再来一次' : '播放并跟唱'
   dotsEl.hidden = exercise !== 'repeat'
   briefEl.textContent = briefFor()
   paintNotes()
@@ -239,6 +334,13 @@ function render(): void {
 }
 
 function paintPitch(status: string): void {
+  if (phase === 'playing') {
+    noteEl.textContent = formatNote(midiToName(currentMidi()))
+    noteEl.className = 'note is-live'
+    detailEl.textContent = '听这个音，然后唱'
+    extraEl.textContent = ''
+    return
+  }
   if (phase === 'listening') {
     if (liveLabel) {
       noteEl.textContent = formatNote(liveLabel)
@@ -248,7 +350,9 @@ function paintPitch(status: string): void {
       noteEl.className = 'note is-empty'
     }
     detailEl.textContent = status
-    extraEl.textContent = liveLabel && !liveStable ? '再稳一下才记最高音' : peakText()
+    extraEl.textContent = cleared
+      ? step >= NOTES.length - 1 ? '松开，这一串就结束' : '松开，到下一个音'
+      : liveLabel && !liveStable ? '再稳一下才记最高音' : peakText()
     return
   }
   if (settled) {
@@ -256,14 +360,14 @@ function paintPitch(status: string): void {
       noteEl.textContent = '·'
       noteEl.className = 'note is-empty'
       detailEl.textContent = '这次没有稳住一个音'
-      extraEl.textContent = ''
+      extraEl.textContent = chainDone ? '这一串练完了' : ''
       return
     }
     const name = formatNote(midiToName(peak.highest))
     noteEl.textContent = name
     noteEl.className = 'note is-stable'
     detailEl.textContent = `最高 ${name}`
-    extraEl.textContent = status
+    extraEl.textContent = chainDone ? '这一串练完了' : status.startsWith('点') ? '' : status
     return
   }
   noteEl.textContent = '·'
@@ -280,7 +384,7 @@ function peakText(): string {
 function slideStatus(midi: number, now: number): string {
   const read = samples.length > 0 ? readSlide(samples, midi, now) : null
   if (read?.passed) done.slide[step] = true
-  if (!read?.touched) return phase === 'listening' ? '先碰到这个高音' : '点开始，碰一下再滑下去'
+  if (!read?.touched) return phase === 'listening' ? '先碰到这个高音' : '点播放并跟唱，碰一下再滑下去'
   if (read.passed) return '高音够短'
   if (!read.short) return '高音太长了'
   return '滑向低音'
@@ -297,7 +401,7 @@ function repeatStatus(midi: number, now: number): string {
   if (read.openTooLong) return '这一下太长了，收掉再来'
   if (read.count >= TILT_MIN) return '三次了'
   if (phase === 'listening') return read.count > 0 ? '继续，至少三次' : '短短地环倾一下'
-  return '点开始，至少三次环倾'
+  return '点播放并跟唱，至少三次环倾'
 }
 
 function longStatus(midi: number, now: number): string {
@@ -306,7 +410,7 @@ function longStatus(midi: number, now: number): string {
   if (read.heldMs > LONG_MIN_MS) return '超过 1 秒了'
   if (read.away) return '音离开了，再站住'
   if (phase === 'listening') return '站住，超过 1 秒'
-  return '点开始，站住超过 1 秒'
+  return '点播放并跟唱，站住超过 1 秒'
 }
 
 function briefFor(): string {
@@ -330,6 +434,7 @@ function paintNotes(): void {
   buttons.forEach((button, index) => {
     button.classList.toggle('is-now', index === step)
     button.classList.toggle('is-reached', done[exercise][index] === true)
+    button.disabled = phase === 'playing' || phase === 'listening'
     button.setAttribute('aria-pressed', index === step ? 'true' : 'false')
   })
 }
