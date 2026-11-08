@@ -291,6 +291,18 @@ input {
   accent-color: var(--amber);
 }
 
+.settings-block label.check {
+  display: flex;
+  gap: 0.75rem;
+  color: var(--ink);
+}
+
+.settings-block label.check input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--amber);
+}
+
 .settings-block span {
   min-width: 7.5rem;
   text-align: right;

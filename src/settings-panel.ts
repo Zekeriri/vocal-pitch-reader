@@ -1,4 +1,5 @@
 import { playMidiSequence } from './scale-player.ts'
+import { silenceSpeech } from './speak.ts'
 import { subscribeSettings, updateSettings, type PracticeSettings } from './settings.ts'
 
 const holdInput = document.querySelector<HTMLInputElement>('#hold')!
@@ -9,6 +10,7 @@ const noteInput = document.querySelector<HTMLInputElement>('#note-length')!
 const noteValue = document.querySelector<HTMLElement>('#note-length-value')!
 const volumeInput = document.querySelector<HTMLInputElement>('#piano-volume')!
 const volumeValue = document.querySelector<HTMLElement>('#piano-volume-value')!
+const voiceInput = document.querySelector<HTMLInputElement>('#voice-prompts')!
 const previewButton = document.querySelector<HTMLButtonElement>('#piano-preview')!
 const statusEl = document.querySelector<HTMLElement>('#settings-status')!
 
@@ -28,6 +30,11 @@ noteInput.addEventListener('input', () => {
 
 volumeInput.addEventListener('input', () => {
   updateSettings({ pianoVolume: Number(volumeInput.value) })
+})
+
+voiceInput.addEventListener('change', () => {
+  updateSettings({ voicePrompts: voiceInput.checked })
+  if (!voiceInput.checked) silenceSpeech()
 })
 
 previewButton.addEventListener('click', () => {
@@ -74,6 +81,7 @@ function paint(settings: PracticeSettings): void {
   noteValue.textContent = `${settings.noteSeconds.toFixed(1)} 秒`
   volumeInput.value = String(settings.pianoVolume)
   volumeValue.textContent = `${settings.pianoVolume}%`
+  voiceInput.checked = settings.voicePrompts
 }
 
 function gateLabel(gate: number): string {
