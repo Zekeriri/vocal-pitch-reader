@@ -14,7 +14,7 @@ export function canSpeak(): boolean {
 }
 
 export function speakNote(note: string): boolean {
-  if (!canSpeak()) return false
+  if (!canSpeak() || !readSettings().voicePrompts) return false
   const synth = window.speechSynthesis
   const utterance = new SpeechSynthesisUtterance(nameToSpeech(note))
   utterance.lang = 'en-US'
