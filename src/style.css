@@ -115,8 +115,7 @@ input {
   border: 1px solid var(--line);
 }
 
-.vib-wave,
-.tilt-wave {
+.vib-wave {
   width: 100%;
   height: 7.5rem;
   border-radius: 1rem;

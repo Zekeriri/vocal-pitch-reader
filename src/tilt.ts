@@ -1,7 +1,9 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
 import { formatNote, freqToMidi, midiToName } from './pitch.ts'
+import { PeakHold } from './scales.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
+import { speakNote } from './speak.ts'
 import {
   LONG_MIN_MS,
   TILT_MIN,
@@ -12,7 +14,6 @@ import {
   type PitchSample,
 } from './tilt-read.ts'
 
-const SVG_NS = 'http://www.w3.org/2000/svg'
 const EXERCISE_KEY = 'pitch-reader-tilt-exercise'
 const STEP_KEY = 'pitch-reader-tilt-step'
 const SLIDE_RESET_MS = 450
@@ -32,7 +33,6 @@ const nextButton = document.querySelector<HTMLButtonElement>('#tilt-next')!
 const statusEl = document.querySelector<HTMLElement>('#tilt-status')!
 const notesEl = document.querySelector<HTMLElement>('#tilt-notes')!
 const dotsEl = document.querySelector<HTMLOListElement>('#tilt-dots')!
-const waveEl = document.querySelector<SVGSVGElement>('#tilt-wave')!
 const slideTab = document.querySelector<HTMLButtonElement>('#tilt-tab-slide')!
 const repeatTab = document.querySelector<HTMLButtonElement>('#tilt-tab-repeat')!
 const longTab = document.querySelector<HTMLButtonElement>('#tilt-tab-long')!
@@ -46,6 +46,10 @@ let boutOrigin = 0
 let quietSince: number | null = null
 let expectStop = false
 let abort: AbortController | null = null
+let settled = false
+let liveLabel: string | null = null
+let liveStable = false
+const peak = new PeakHold()
 let exercise: Exercise = storedChoice(EXERCISE_KEY, ['slide', 'repeat', 'long'], 'slide')
 let step = storedStep()
 const done: Record<Exercise, boolean[]> = {
@@ -68,6 +72,9 @@ const listener = new PitchListener((detection) => {
   }
   quietSince = null
   if (samples.length === 0) boutOrigin = now
+  liveLabel = detection.result.note
+  liveStable = detection.result.stable
+  peak.push(detection.result.midi, detection.result.stable)
   samples.push({ time: now - boutOrigin, midi: freqToMidi(detection.result.freq) })
   if (samples.length > 4000) samples.splice(0, samples.length - 4000)
   render()
@@ -104,15 +111,12 @@ export function handleTiltSpace(): void {
 }
 
 export function stopTilt(): void {
-  abort?.abort()
-  haltMic()
-  if (phase === 'listening') phase = 'idle'
-  render()
+  finishTake(false)
 }
 
 async function toggle(): Promise<void> {
   if (phase === 'listening') {
-    stopTilt()
+    finishTake(true)
     return
   }
   abort?.abort()
@@ -181,10 +185,26 @@ function setExercise(next: Exercise): void {
   render()
 }
 
+function finishTake(speak: boolean): void {
+  abort?.abort()
+  const wasListening = phase === 'listening'
+  haltMic()
+  if (wasListening) {
+    phase = 'idle'
+    settled = true
+  }
+  render()
+  if (speak && peak.highest != null) speakNote(midiToName(peak.highest))
+}
+
 function clearTake(): void {
   samples = []
   boutOrigin = 0
   quietSince = null
+  settled = false
+  liveLabel = null
+  liveStable = false
+  peak.reset()
 }
 
 function currentMidi(): number {
@@ -214,57 +234,79 @@ function render(): void {
   briefEl.textContent = briefFor()
   paintNotes()
 
-  if (exercise === 'slide') renderSlide(midi, now)
-  else if (exercise === 'repeat') renderRepeat(midi, now)
-  else renderLong(midi, now)
-  paintWave(midi)
+  const status = exercise === 'slide' ? slideStatus(midi, now) : exercise === 'repeat' ? repeatStatus(midi, now) : longStatus(midi, now)
+  paintPitch(status)
 }
 
-function renderSlide(midi: number, now: number): void {
-  const read = samples.length > 0 ? readSlide(samples, midi, now) : null
-  if (read?.passed) done.slide[step] = true
-  const seconds = read?.touched ? read.peakMs / 1000 : 0
-  noteEl.textContent = seconds > 0 ? seconds.toFixed(1) : '·'
-  noteEl.classList.toggle('is-empty', seconds <= 0)
-  if (!read?.touched) {
-    detailEl.textContent = phase === 'listening' ? '先碰到这个高音' : '点开始，碰一下再滑下去'
-    extraEl.textContent = ''
+function paintPitch(status: string): void {
+  if (phase === 'listening') {
+    if (liveLabel) {
+      noteEl.textContent = formatNote(liveLabel)
+      noteEl.className = liveStable ? 'note is-stable' : 'note is-live'
+    } else {
+      noteEl.textContent = '·'
+      noteEl.className = 'note is-empty'
+    }
+    detailEl.textContent = status
+    extraEl.textContent = liveLabel && !liveStable ? '再稳一下才记最高音' : peakText()
     return
   }
-  if (read.passed) detailEl.textContent = '高音够短'
-  else if (!read.short) detailEl.textContent = '高音太长了'
-  else detailEl.textContent = '滑向低音'
-  extraEl.textContent = read.passed ? '这个音可以了' : ''
+  if (settled) {
+    if (peak.highest == null) {
+      noteEl.textContent = '·'
+      noteEl.className = 'note is-empty'
+      detailEl.textContent = '这次没有稳住一个音'
+      extraEl.textContent = ''
+      return
+    }
+    const name = formatNote(midiToName(peak.highest))
+    noteEl.textContent = name
+    noteEl.className = 'note is-stable'
+    detailEl.textContent = `最高 ${name}`
+    extraEl.textContent = status
+    return
+  }
+  noteEl.textContent = '·'
+  noteEl.className = 'note is-empty'
+  detailEl.textContent = status
+  extraEl.textContent = ''
 }
 
-function renderRepeat(midi: number, now: number): void {
+function peakText(): string {
+  if (peak.highest == null) return ''
+  return `最高 ${formatNote(midiToName(peak.highest))}`
+}
+
+function slideStatus(midi: number, now: number): string {
+  const read = samples.length > 0 ? readSlide(samples, midi, now) : null
+  if (read?.passed) done.slide[step] = true
+  if (!read?.touched) return phase === 'listening' ? '先碰到这个高音' : '点开始，碰一下再滑下去'
+  if (read.passed) return '高音够短'
+  if (!read.short) return '高音太长了'
+  return '滑向低音'
+}
+
+function repeatStatus(midi: number, now: number): string {
   const read = samples.length > 0 ? readTilts(samples, midi, now) : { count: 0, openTooLong: false }
   if (read.count >= TILT_MIN) done.repeat[step] = true
-  noteEl.textContent = read.count > 0 ? String(read.count) : '·'
-  noteEl.classList.toggle('is-empty', read.count === 0)
-  if (read.openTooLong) detailEl.textContent = '这一下太长了，收掉再来'
-  else if (read.count >= TILT_MIN) detailEl.textContent = '三次了'
-  else if (phase === 'listening') detailEl.textContent = read.count > 0 ? '继续，至少三次' : '短短地环倾一下'
-  else detailEl.textContent = '点开始，至少三次环倾'
-  extraEl.textContent = read.count >= TILT_MIN ? '这个音可以了' : ''
   const dots = dotsEl.querySelectorAll('li')
   dots.forEach((dot, index) => {
     dot.classList.toggle('is-done', index < read.count)
     dot.classList.toggle('is-now', phase === 'listening' && index === read.count && read.count < TILT_MIN)
   })
+  if (read.openTooLong) return '这一下太长了，收掉再来'
+  if (read.count >= TILT_MIN) return '三次了'
+  if (phase === 'listening') return read.count > 0 ? '继续，至少三次' : '短短地环倾一下'
+  return '点开始，至少三次环倾'
 }
 
-function renderLong(midi: number, now: number): void {
+function longStatus(midi: number, now: number): string {
   const read = samples.length > 0 ? readSustain(samples, midi, now) : { heldMs: 0, live: false, away: false }
   if (read.heldMs > LONG_MIN_MS) done.long[step] = true
-  const seconds = read.heldMs / 1000
-  noteEl.textContent = seconds > 0 ? seconds.toFixed(1) : '·'
-  noteEl.classList.toggle('is-empty', seconds <= 0)
-  if (read.heldMs > LONG_MIN_MS) detailEl.textContent = '超过 1 秒了'
-  else if (read.away) detailEl.textContent = '音离开了，再站住'
-  else if (phase === 'listening') detailEl.textContent = '站住，超过 1 秒'
-  else detailEl.textContent = seconds > 0 ? '再站住一会儿' : '点开始，站住超过 1 秒'
-  extraEl.textContent = read.heldMs > LONG_MIN_MS ? '这个音可以了' : ''
+  if (read.heldMs > LONG_MIN_MS) return '超过 1 秒了'
+  if (read.away) return '音离开了，再站住'
+  if (phase === 'listening') return '站住，超过 1 秒'
+  return '点开始，站住超过 1 秒'
 }
 
 function briefFor(): string {
@@ -298,53 +340,6 @@ function fillDots(): void {
     item.textContent = String(index)
     dotsEl.append(item)
   }
-}
-
-function paintWave(target: number): void {
-  waveEl.replaceChildren()
-  const axisY = exercise === 'slide' ? 28 : 60
-  waveEl.append(guide(axisY, exercise === 'slide' ? formatNote(midiToName(target)) : ''))
-  if (samples.length < 2) return
-  const end = samples[samples.length - 1].time
-  const start = exercise === 'slide' ? samples[0].time : Math.max(samples[0].time, end - 4000)
-  const span = Math.max(300, end - start)
-  const windowed = samples.filter((sample) => sample.time >= start)
-  const path = document.createElementNS(SVG_NS, 'polyline')
-  path.setAttribute('points', windowed.map((sample) => {
-    const y = exercise === 'slide'
-      ? Math.min(112, Math.max(8, axisY + (target - sample.midi) * 18))
-      : Math.min(112, Math.max(8, 60 - ((sample.midi - target) * 100 / 150) * 48))
-    const x = 36 + ((sample.time - start) / span) * 316
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' '))
-  path.setAttribute('fill', 'none')
-  path.setAttribute('stroke', '#f0b429')
-  path.setAttribute('stroke-width', '2.5')
-  path.setAttribute('stroke-linejoin', 'round')
-  path.setAttribute('stroke-linecap', 'round')
-  waveEl.append(path)
-}
-
-function guide(y: number, label: string): SVGGElement {
-  const group = document.createElementNS(SVG_NS, 'g')
-  const axis = document.createElementNS(SVG_NS, 'line')
-  axis.setAttribute('x1', '36')
-  axis.setAttribute('x2', '352')
-  axis.setAttribute('y1', String(y))
-  axis.setAttribute('y2', String(y))
-  axis.setAttribute('stroke', '#313228')
-  axis.setAttribute('stroke-width', '1')
-  group.append(axis)
-  if (label) {
-    const text = document.createElementNS(SVG_NS, 'text')
-    text.setAttribute('x', '8')
-    text.setAttribute('y', String(y + 4))
-    text.setAttribute('fill', '#9a9588')
-    text.setAttribute('font-size', '12')
-    text.textContent = label
-    group.append(text)
-  }
-  return group
 }
 
 function renderMeter(rms: number): void {
