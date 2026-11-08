@@ -102,7 +102,10 @@ hearButton.addEventListener('click', () => {
   void hear()
 })
 prevButton.addEventListener('click', () => move(-1))
-nextButton.addEventListener('click', () => move(1))
+nextButton.addEventListener('click', () => {
+  if (step >= NOTES.length - 1) finishRound()
+  else move(1)
+})
 slideTab.addEventListener('click', () => setExercise('slide'))
 repeatTab.addEventListener('click', () => setExercise('repeat'))
 longTab.addEventListener('click', () => setExercise('long'))
@@ -220,6 +223,14 @@ async function hear(): Promise<void> {
   }
 }
 
+function finishRound(): void {
+  if (phase === 'playing' || phase === 'listening') return
+  step = 0
+  localStorage.setItem(STEP_KEY, '0')
+  clearTake()
+  render()
+}
+
 function move(delta: number): void {
   if (phase === 'playing' || phase === 'listening') return
   const next = Math.min(NOTES.length - 1, Math.max(0, step + delta))
@@ -320,8 +331,10 @@ function render(): void {
   placeEl.textContent = `${name} · ${step + 1} / ${NOTES.length}`
   hearButton.textContent = `听 ${name}`
   hearButton.disabled = busy
+  const last = step === NOTES.length - 1
   prevButton.disabled = busy || step === 0
-  nextButton.disabled = busy || step === NOTES.length - 1
+  nextButton.disabled = busy
+  nextButton.textContent = last ? '完成' : '下一个音'
   startButton.disabled = phase === 'playing'
   startButton.textContent = phase === 'playing' ? '正在播放…' : phase === 'listening' ? '唱完了' : chainDone ? '再来一次' : '播放并跟唱'
   paintNotes()

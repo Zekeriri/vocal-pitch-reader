@@ -91,6 +91,10 @@ prevButton.addEventListener('click', () => {
   move(-1)
 })
 nextButton.addEventListener('click', () => {
+  if (current().index === current().count - 1) {
+    finishRound()
+    return
+  }
   void playNext()
 })
 playButton.addEventListener('click', () => {
@@ -143,6 +147,16 @@ function move(delta: number): boolean {
   peak.reset()
   render()
   return true
+}
+
+function finishRound(): void {
+  if (phase === 'playing' || phase === 'singing') return
+  stepIndex = 0
+  localStorage.setItem(STEP_KEY, '0')
+  phase = 'idle'
+  playIndex = -1
+  peak.reset()
+  render()
 }
 
 async function playNext(): Promise<void> {
@@ -234,8 +248,10 @@ function render(): void {
   partEl.hidden = !showPart
   partEl.textContent = showPart ? step.part.title : ''
   groupEl.textContent = `第 ${step.group.number} 组 · 基准 ${formatPracticeNote(step.group.low.label)}、${formatPracticeNote(step.group.high.label)} · ${step.index + 1}/${step.count}`
+  const last = step.index === step.count - 1
   prevButton.disabled = busy || step.index === 0
-  nextButton.disabled = busy || step.index === step.count - 1
+  nextButton.disabled = busy
+  nextButton.textContent = last ? '完成' : '下一组'
   humButton.disabled = busy
   flexButton.disabled = busy
   playButton.disabled = phase === 'playing'
