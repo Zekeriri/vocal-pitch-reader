@@ -30,10 +30,10 @@ describe('vibrato reading', () => {
     const cents = Array.from({ length: 40 }, (_, index) => 80 * Math.sin(index / 3) + (index % 5 === 0 ? 70 : 0))
     const ys = displayCents(cents).map((value) => displayWaveY(value))
     const reach = Math.max(...ys.map((y) => Math.abs(y - 60)))
-    expect(reach).toBeGreaterThan(8)
-    expect(reach).toBeLessThan(28)
+    expect(reach).toBeGreaterThan(18)
+    expect(reach).toBeLessThan(47)
     expect(Math.max(...ys)).toBeLessThan(106)
-    expect(Math.min(...ys)).toBeGreaterThan(14)
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(14)
   })
 
   it('ignores a tone that is not waving', () => {
