@@ -47,6 +47,7 @@ let liveStable = false
 const peak = new PeakHold()
 let heldMs = 0
 let heldTick: number | null = null
+let heldNote: number | null = null
 let awaySince: number | null = null
 let exercise: Exercise = storedChoice(EXERCISE_KEY, ['slide', 'repeat', 'long'], 'slide')
 let step = storedStep()
@@ -61,7 +62,7 @@ const listener = new PitchListener((detection) => {
   if (phase !== 'listening' || advancing) return
   const now = performance.now()
   if (detection.result.freq == null) {
-    if (exercise === 'long' && !cleared) noteHeld(now, false)
+    if (exercise === 'long' && !cleared) noteHeld(now, null, currentMidi())
     if (cleared && quietSince == null) quietSince = now
     if (cleared && quietSince != null && now - quietSince >= PASS_QUIET_MS) {
       void advance()
@@ -76,8 +77,8 @@ const listener = new PitchListener((detection) => {
   liveLabel = detection.result.note ?? (midi == null ? null : midiToName(midi))
   liveStable = detection.result.stable
   peak.push(midi, detection.result.stable)
-  if (exercise === 'long') noteHeld(now, midi === target)
-  else if (detection.result.stable && midi === target) markCleared()
+  if (exercise === 'long') noteHeld(now, midi, target)
+  else if (detection.result.stable && midi != null && midi >= target) markCleared()
   render()
 }, () => {
   if (expectStop || phase !== 'listening') return
@@ -268,15 +269,27 @@ function clearTake(): void {
   liveStable = false
   heldMs = 0
   heldTick = null
+  heldNote = null
   awaySince = null
   peak.reset()
 }
 
-function noteHeld(now: number, onNote: boolean): void {
-  if (!onNote) {
+function noteHeld(now: number, midi: number | null, target: number): void {
+  const onNote = midi != null && midi >= target
+  if (!onNote || midi !== heldNote) {
+    if (onNote) {
+      heldNote = midi
+      heldMs = 0
+      heldTick = now
+      awaySince = null
+      return
+    }
     if (awaySince == null) awaySince = now
     heldTick = null
-    if (now - awaySince >= HOLD_GAP_MS) heldMs = 0
+    if (now - awaySince >= HOLD_GAP_MS) {
+      heldMs = 0
+      heldNote = null
+    }
     return
   }
   if (awaySince != null && now - awaySince >= HOLD_GAP_MS) heldMs = 0
@@ -354,14 +367,14 @@ function paintPitch(): void {
   }
   noteEl.textContent = '·'
   noteEl.className = 'note is-empty'
-  detailEl.textContent = exercise === 'long' ? '点播放并跟唱，把这个音稳住 1 秒以上' : '点播放并跟唱，稳住这个音'
+  detailEl.textContent = exercise === 'long' ? '点播放并跟唱，稳住这个音或更高的音 1 秒以上' : '点播放并跟唱，稳住这个音，更高也行'
   extraEl.textContent = ''
 }
 
 function listeningDetail(): string {
   if (cleared) return exercise === 'long' ? '稳住 1 秒了' : '稳住了'
-  if (exercise !== 'long') return liveStable ? '再停在这个音上' : '再稳一下才记最高音'
-  if (heldMs <= 0 && heldTick == null) return '把这个音稳住 1 秒以上'
+  if (exercise !== 'long') return liveStable ? '再停在这个音上，更高也行' : '再稳一下才记最高音'
+  if (heldMs <= 0 && heldTick == null) return '把这个音或更高的音稳住 1 秒以上'
   const seconds = Math.min(TILT_LONG_MS, heldMs) / 1000
   return `已稳住 ${seconds.toFixed(1)} 秒`
 }
