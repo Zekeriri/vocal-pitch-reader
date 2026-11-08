@@ -2,22 +2,19 @@ import { PitchListener, micErrorMessage } from './audio.ts'
 import { formatNote, midiToName } from './pitch.ts'
 import { PeakHold } from './scales.ts'
 import { playMidiSequence } from './scale-player.ts'
-import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
+import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakNote } from './speak.ts'
-import { tiltPeakHoldMs } from './tilt-hold.ts'
 
 const STEP_KEY = 'pitch-reader-tilt-step'
 const NOTE_LOW = 60
 const NOTE_HIGH = 72
 const NOTES = Array.from({ length: NOTE_HIGH - NOTE_LOW + 1 }, (_, index) => NOTE_LOW + index)
 const PASS_QUIET_MS = 700
-const HOLD_GAP_MS = 120
 
 const noteEl = document.querySelector<HTMLElement>('#tilt-note')!
 const detailEl = document.querySelector<HTMLElement>('#tilt-detail')!
 const extraEl = document.querySelector<HTMLElement>('#tilt-extra')!
 const placeEl = document.querySelector<HTMLElement>('#tilt-place')!
-const hintEl = document.querySelector<HTMLElement>('#tilt-hint')!
 const levelEl = document.querySelector<HTMLElement>('#tilt-level')!
 const gateMarkEl = document.querySelector<HTMLElement>('#tilt-gate')!
 const startButton = document.querySelector<HTMLButtonElement>('#tilt-start')!
@@ -40,9 +37,6 @@ let chainDone = false
 let cleared = false
 let liveLabel: string | null = null
 let liveStable = false
-let pendingMidi: number | null = null
-let pendingSince = 0
-let gapSince: number | null = null
 const peak = new PeakHold()
 let step = storedStep()
 let done = NOTES.map(() => false)
@@ -53,7 +47,6 @@ const listener = new PitchListener((detection) => {
   const now = performance.now()
   if (detection.result.freq == null) {
     if (cleared && quietSince == null) quietSince = now
-    trackHold(null, now)
     if (cleared && quietSince != null && now - quietSince >= PASS_QUIET_MS) {
       void advance()
       return
@@ -64,7 +57,12 @@ const listener = new PitchListener((detection) => {
   quietSince = null
   const midi = detection.result.midi
   liveLabel = detection.result.note ?? (midi == null ? null : midiToName(midi))
-  trackHold(midi, now)
+  liveStable = detection.result.stable
+  peak.push(midi, detection.result.stable)
+  if (detection.result.stable && midi === currentMidi()) {
+    cleared = true
+    done[step] = true
+  }
   render()
 }, () => {
   if (expectStop || phase !== 'listening') return
@@ -76,7 +74,6 @@ subscribeSettings((settings) => {
   listener.rmsMin = gateToRms(settings.gate)
   listener.setHoldMs(settings.holdMs)
   gateMarkEl.style.left = `${gateMarkRatio(listener.rmsMin) * 100}%`
-  if (phase === 'idle' && !settled) render()
 })
 
 fillNotes()
@@ -243,32 +240,7 @@ function clearTake(): void {
   cleared = false
   liveLabel = null
   liveStable = false
-  pendingMidi = null
-  pendingSince = 0
-  gapSince = null
   peak.reset()
-}
-
-function trackHold(midi: number | null, now: number): void {
-  if (midi == null) {
-    if (gapSince == null) gapSince = now
-    if (now - gapSince >= HOLD_GAP_MS) pendingMidi = null
-    return
-  }
-  gapSince = null
-  const rounded = Math.round(midi)
-  if (rounded !== pendingMidi) {
-    pendingMidi = rounded
-    pendingSince = now
-    liveStable = false
-    return
-  }
-  const ready = now - pendingSince >= tiltPeakHoldMs(readSettings().holdMs)
-  liveStable = ready
-  if (!ready) return
-  peak.push(rounded, true)
-  cleared = true
-  done[step] = true
 }
 
 function currentMidi(): number {
@@ -279,7 +251,6 @@ function render(): void {
   const name = formatNote(midiToName(currentMidi()))
   const busy = phase === 'playing' || phase === 'listening'
   placeEl.textContent = `${name} · ${step + 1} / ${NOTES.length}`
-  hintEl.textContent = `先放这个音，再唱。最高音要稳住 ${holdLabel()}才记，比咽音练习更久。松开后自动到下一个音，再放音，再录音。请戴耳机。`
   hearButton.textContent = `听 ${name}`
   hearButton.disabled = busy
   prevButton.disabled = busy || step === 0
@@ -306,7 +277,7 @@ function paintPitch(): void {
       noteEl.textContent = '·'
       noteEl.className = 'note is-empty'
     }
-    detailEl.textContent = cleared ? '最高音记下了' : '再稳一下才记最高音'
+    detailEl.textContent = cleared ? '碰到了' : liveStable ? '再碰到这个音' : '再稳一下才记最高音'
     extraEl.textContent = cleared
       ? step >= NOTES.length - 1 ? '松开，这一串就结束' : '松开，到下一个音'
       : peakText()
@@ -329,18 +300,13 @@ function paintPitch(): void {
   }
   noteEl.textContent = '·'
   noteEl.className = 'note is-empty'
-  detailEl.textContent = '点播放并跟唱，把最高音稳住'
+  detailEl.textContent = '点播放并跟唱，碰到这个音'
   extraEl.textContent = ''
 }
 
 function peakText(): string {
   if (peak.highest == null) return ''
   return `最高 ${formatNote(midiToName(peak.highest))}`
-}
-
-function holdLabel(): string {
-  const seconds = tiltPeakHoldMs(readSettings().holdMs) / 1000
-  return `${seconds.toFixed(2).replace(/0$/, '').replace(/\.0$/, '')} 秒`
 }
 
 function fillNotes(): void {
