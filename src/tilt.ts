@@ -1,15 +1,18 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { formatNote, midiToName } from './pitch.ts'
+import { formatNote, freqToMidi, midiToName } from './pitch.ts'
 import { PeakHold } from './scales.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakNote } from './speak.ts'
+import { TILT_LONG_MS, tiltAbove, tiltTouched } from './tilt-pass.ts'
 
+const EXERCISE_KEY = 'pitch-reader-tilt-exercise'
 const STEP_KEY = 'pitch-reader-tilt-step'
 const NOTE_LOW = 60
 const NOTE_HIGH = 72
 const NOTES = Array.from({ length: NOTE_HIGH - NOTE_LOW + 1 }, (_, index) => NOTE_LOW + index)
 const PASS_QUIET_MS = 700
+const ABOVE_GAP_MS = 150
 
 const noteEl = document.querySelector<HTMLElement>('#tilt-note')!
 const detailEl = document.querySelector<HTMLElement>('#tilt-detail')!
@@ -23,7 +26,11 @@ const prevButton = document.querySelector<HTMLButtonElement>('#tilt-prev')!
 const nextButton = document.querySelector<HTMLButtonElement>('#tilt-next')!
 const statusEl = document.querySelector<HTMLElement>('#tilt-status')!
 const notesEl = document.querySelector<HTMLElement>('#tilt-notes')!
+const slideTab = document.querySelector<HTMLButtonElement>('#tilt-tab-slide')!
+const repeatTab = document.querySelector<HTMLButtonElement>('#tilt-tab-repeat')!
+const longTab = document.querySelector<HTMLButtonElement>('#tilt-tab-long')!
 
+type Exercise = 'slide' | 'repeat' | 'long'
 type Phase = 'idle' | 'playing' | 'listening'
 
 let phase: Phase = 'idle'
@@ -38,14 +45,23 @@ let cleared = false
 let liveLabel: string | null = null
 let liveStable = false
 const peak = new PeakHold()
+let aboveMs = 0
+let aboveTick: number | null = null
+let awaySince: number | null = null
+let exercise: Exercise = storedChoice(EXERCISE_KEY, ['slide', 'repeat', 'long'], 'slide')
 let step = storedStep()
-let done = NOTES.map(() => false)
+const done: Record<Exercise, boolean[]> = {
+  slide: NOTES.map(() => false),
+  repeat: NOTES.map(() => false),
+  long: NOTES.map(() => false),
+}
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
   if (phase !== 'listening' || advancing) return
   const now = performance.now()
   if (detection.result.freq == null) {
+    if (exercise === 'long' && !cleared) noteAbove(now, false)
     if (cleared && quietSince == null) quietSince = now
     if (cleared && quietSince != null && now - quietSince >= PASS_QUIET_MS) {
       void advance()
@@ -55,13 +71,17 @@ const listener = new PitchListener((detection) => {
     return
   }
   quietSince = null
-  const midi = detection.result.midi
-  liveLabel = detection.result.note ?? (midi == null ? null : midiToName(midi))
-  liveStable = detection.result.stable
-  peak.push(midi, detection.result.stable)
-  if (detection.result.stable && midi === currentMidi()) {
-    cleared = true
-    done[step] = true
+  const midi = freqToMidi(detection.result.freq)
+  const target = currentMidi()
+  liveLabel = detection.result.note ?? midiToName(midi)
+  peak.push(Math.round(midi), true)
+  if (exercise === 'long') {
+    noteAbove(now, tiltAbove(midi, target))
+  } else if (tiltTouched(midi, target)) {
+    liveStable = true
+    markCleared()
+  } else {
+    liveStable = false
   }
   render()
 }, () => {
@@ -87,6 +107,9 @@ hearButton.addEventListener('click', () => {
 })
 prevButton.addEventListener('click', () => move(-1))
 nextButton.addEventListener('click', () => move(1))
+slideTab.addEventListener('click', () => setExercise('slide'))
+repeatTab.addEventListener('click', () => setExercise('repeat'))
+longTab.addEventListener('click', () => setExercise('long'))
 
 export function handleTiltSpace(): void {
   if (phase === 'playing') return
@@ -105,7 +128,7 @@ export function stopTilt(): void {
 async function begin(): Promise<void> {
   if (phase === 'playing' || phase === 'listening') return
   if (chainDone) {
-    done = NOTES.map(() => false)
+    done[exercise] = NOTES.map(() => false)
     step = 0
     localStorage.setItem(STEP_KEY, String(step))
     chainDone = false
@@ -211,6 +234,14 @@ function move(delta: number): void {
   render()
 }
 
+function setExercise(next: Exercise): void {
+  if (phase === 'playing' || phase === 'listening') return
+  exercise = next
+  localStorage.setItem(EXERCISE_KEY, exercise)
+  clearTake()
+  render()
+}
+
 function selectNote(index: number): void {
   if (phase === 'playing' || phase === 'listening') return
   if (index === step) return
@@ -240,7 +271,31 @@ function clearTake(): void {
   cleared = false
   liveLabel = null
   liveStable = false
+  aboveMs = 0
+  aboveTick = null
+  awaySince = null
   peak.reset()
+}
+
+function noteAbove(now: number, above: boolean): void {
+  if (!above) {
+    if (awaySince == null) awaySince = now
+    aboveTick = null
+    if (now - awaySince >= ABOVE_GAP_MS) aboveMs = 0
+    liveStable = false
+    return
+  }
+  if (awaySince != null && now - awaySince >= ABOVE_GAP_MS) aboveMs = 0
+  awaySince = null
+  if (aboveTick != null) aboveMs += now - aboveTick
+  aboveTick = now
+  liveStable = aboveMs >= TILT_LONG_MS
+  if (liveStable) markCleared()
+}
+
+function markCleared(): void {
+  cleared = true
+  done[exercise][step] = true
 }
 
 function currentMidi(): number {
@@ -250,6 +305,12 @@ function currentMidi(): number {
 function render(): void {
   const name = formatNote(midiToName(currentMidi()))
   const busy = phase === 'playing' || phase === 'listening'
+  slideTab.setAttribute('aria-pressed', exercise === 'slide' ? 'true' : 'false')
+  repeatTab.setAttribute('aria-pressed', exercise === 'repeat' ? 'true' : 'false')
+  longTab.setAttribute('aria-pressed', exercise === 'long' ? 'true' : 'false')
+  slideTab.disabled = busy
+  repeatTab.disabled = busy
+  longTab.disabled = busy
   placeEl.textContent = `${name} · ${step + 1} / ${NOTES.length}`
   hearButton.textContent = `听 ${name}`
   hearButton.disabled = busy
@@ -277,7 +338,7 @@ function paintPitch(): void {
       noteEl.textContent = '·'
       noteEl.className = 'note is-empty'
     }
-    detailEl.textContent = cleared ? '碰到了' : liveStable ? '再碰到这个音' : '再稳一下才记最高音'
+    detailEl.textContent = listeningDetail()
     extraEl.textContent = cleared
       ? step >= NOTES.length - 1 ? '松开，这一串就结束' : '松开，到下一个音'
       : peakText()
@@ -287,7 +348,7 @@ function paintPitch(): void {
     if (peak.highest == null) {
       noteEl.textContent = '·'
       noteEl.className = 'note is-empty'
-      detailEl.textContent = '这次没有稳住一个音'
+      detailEl.textContent = exercise === 'long' ? '这次没有超过 1 秒' : '这次没有碰到'
       extraEl.textContent = chainDone ? '这一串练完了' : ''
       return
     }
@@ -295,13 +356,25 @@ function paintPitch(): void {
     noteEl.textContent = name
     noteEl.className = 'note is-stable'
     detailEl.textContent = `最高 ${name}`
-    extraEl.textContent = chainDone ? '这一串练完了' : ''
+    extraEl.textContent = chainDone ? '这一串练完了' : cleared ? '' : missText()
     return
   }
   noteEl.textContent = '·'
   noteEl.className = 'note is-empty'
-  detailEl.textContent = '点播放并跟唱，碰到这个音'
+  detailEl.textContent = exercise === 'long' ? '点播放并跟唱，超过这个音 1 秒' : '点播放并跟唱，碰到这个音就行'
   extraEl.textContent = ''
+}
+
+function listeningDetail(): string {
+  if (cleared) return exercise === 'long' ? '超过 1 秒了' : '碰到了'
+  if (exercise !== 'long') return '碰到这个音就行'
+  if (aboveMs <= 0 && aboveTick == null) return '超过这个音，停满 1 秒'
+  const seconds = Math.min(TILT_LONG_MS, aboveMs) / 1000
+  return `已超过 ${seconds.toFixed(1)} 秒`
+}
+
+function missText(): string {
+  return exercise === 'long' ? '还没超过 1 秒' : '还没碰到'
 }
 
 function peakText(): string {
@@ -323,7 +396,7 @@ function paintNotes(): void {
   const buttons = notesEl.querySelectorAll('button')
   buttons.forEach((button, index) => {
     button.classList.toggle('is-now', index === step)
-    button.classList.toggle('is-reached', done[index] === true)
+    button.classList.toggle('is-reached', done[exercise][index] === true)
     button.disabled = phase === 'playing' || phase === 'listening'
     button.setAttribute('aria-pressed', index === step ? 'true' : 'false')
   })
@@ -340,6 +413,11 @@ function haltMic(): void {
   expectStop = true
   listener.stop()
   expectStop = false
+}
+
+function storedChoice<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  const raw = localStorage.getItem(key)
+  return allowed.find((item) => item === raw) ?? fallback
 }
 
 function storedStep(): number {

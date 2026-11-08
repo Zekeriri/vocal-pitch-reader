@@ -228,9 +228,14 @@
     <main class="stage is-flow" id="tilt" hidden>
       <header>
         <p class="eyebrow">环倾</p>
-        <h1>记下最高音</h1>
-        <p class="lede">从 C4 到 C5。碰到这个音之后，自动到下一个。</p>
+        <h1>三个训练</h1>
+        <p class="lede">从 C4 到 C5。前两个碰到就过，长音要超过这个音 1 秒。</p>
       </header>
+      <div class="modes exercise-switch" role="group" aria-label="环倾训练">
+        <button class="mode" id="tilt-tab-slide" type="button" aria-pressed="true">短音下滑</button>
+        <button class="mode" id="tilt-tab-repeat" type="button" aria-pressed="false">短音重复</button>
+        <button class="mode" id="tilt-tab-long" type="button" aria-pressed="false">长音</button>
+      </div>
       <p id="tilt-place" class="group-label">C4 · 1 / 13</p>
       <div id="tilt-notes" class="scale-row" role="list" aria-label="从 C4 到 C5"></div>
       <div class="actions">
@@ -239,7 +244,7 @@
       </div>
       <section class="readout ph-readout">
         <p id="tilt-note" class="note is-empty">·</p>
-        <p id="tilt-detail" class="detail">点播放并跟唱，碰到这个音</p>
+        <p id="tilt-detail" class="detail">点播放并跟唱，碰到这个音就行</p>
         <p id="tilt-extra" class="spoken" aria-live="polite"></p>
       </section>
       <div class="meter" title="输入响度">
@@ -250,7 +255,7 @@
         <button id="tilt-start" class="primary" type="button">播放并跟唱</button>
         <button id="tilt-hear" class="ghost" type="button">听 C4</button>
       </div>
-      <p id="tilt-hint" class="hint">先放这个音，再唱。碰到它，并稳住设置里的时间，就算过了，和咽音练习一样。松开后自动到下一个音，再放音，再录音。请戴耳机。</p>
+      <p id="tilt-hint" class="hint">短音下滑和短音重复，碰到这个音就行，高过它也算。长音要超过这个音，停满 1 秒。松开后自动到下一个音，再放音，再录音。请戴耳机。</p>
       <p id="tilt-status" class="status" role="status"></p>
     </main>
 
@@ -297,7 +302,7 @@
         </label>
         <p class="hint">念出音名，以及「高了」「低了」「过关」「学会了」。关掉以后，音名和这些话还写在屏幕上。</p>
         <p>
-          电平要越过白点才收。音高朗读、音准训练、咽音练习和环倾，都要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾从 C4 走到 C5，碰到这个音后自动到下一个。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+          电平要越过白点才收。音高朗读、音准训练和咽音练习的最高音，要稳住这段时间才算。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。环倾不看这段时间：前两个练习碰到当前音就过，长音要超过这个音 1 秒。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
         </p>
       </section>
       <p id="settings-status" class="status" role="status"></p>
