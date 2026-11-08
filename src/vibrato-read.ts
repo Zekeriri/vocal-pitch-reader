@@ -22,6 +22,25 @@ export const SPEEDS: readonly { id: VibratoSpeed; title: string; low: number; hi
   { id: 'faster', title: '超快', low: 6, high: Infinity, label: '6 次/秒以上' },
 ]
 
+const WAVE_PX_PER_CENT = 0.26
+
+export function displayCents(cents: readonly number[]): number[] {
+  return smoothCents(smoothCents(cents))
+}
+
+export function displayWaveY(cents: number): number {
+  return Math.min(106, Math.max(14, 60 - cents * WAVE_PX_PER_CENT))
+}
+
+function smoothCents(cents: readonly number[]): number[] {
+  return cents.map((_, index) => {
+    const left = cents[Math.max(0, index - 1)]
+    const mid = cents[index]
+    const right = cents[Math.min(cents.length - 1, index + 1)]
+    return (left + mid + right) / 3
+  })
+}
+
 export function speedForRate(rate: number): VibratoSpeed | null {
   const rounded = Math.round(rate * 100) / 100
   const found = SPEEDS.find((speed) => rounded >= speed.low && rounded < speed.high)
