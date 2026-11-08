@@ -160,11 +160,13 @@ function renderDetection(detection: {
   if (detection.speaking) return
   const { result } = detection
   if (result.announce) {
-    spokenEl.textContent = `念了 ${formatNote(result.announce)}`
-    const spoke = speakNote(result.announce)
-    if (!spoke && !speechWarned) {
-      speechWarned = true
-      statusEl.textContent = '这台浏览器不会朗读，音名只显示在这里。'
+    if (readSettings().voicePrompts) {
+      spokenEl.textContent = `念了 ${formatNote(result.announce)}`
+      const spoke = speakNote(result.announce)
+      if (!spoke && !speechWarned) {
+        speechWarned = true
+        statusEl.textContent = '这台浏览器不会朗读，音名只显示在这里。'
+      }
     }
   }
   if (!result.note || result.freq == null || result.cents == null) {
