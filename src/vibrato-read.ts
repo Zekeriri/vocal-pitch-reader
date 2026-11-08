@@ -22,7 +22,7 @@ export const SPEEDS: readonly { id: VibratoSpeed; title: string; low: number; hi
   { id: 'faster', title: '超快', low: 6, high: Infinity, label: '6 次/秒以上' },
 ]
 
-const WAVE_PX_PER_CENT = 0.26
+const WAVE_PX_PER_CENT = 0.5
 
 export function displayCents(cents: readonly number[]): number[] {
   return smoothCents(smoothCents(cents))
