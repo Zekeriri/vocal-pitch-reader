@@ -15,7 +15,6 @@
       <button class="mode" type="button" data-mode="pharyngeal" aria-pressed="false">咽音练习</button>
       <button class="mode" type="button" data-mode="vibrato" aria-pressed="false">颤音</button>
       <button class="mode" type="button" data-mode="tilt" aria-pressed="false">环倾</button>
-      <button class="mode" type="button" data-mode="ocarina" aria-pressed="false">时之笛</button>
       <button class="mode" type="button" data-mode="settings" aria-pressed="false">设置</button>
     </nav>
     <main class="stage" id="stage" data-state="idle">
@@ -130,35 +129,6 @@
       <p id="tune-status" class="status" role="status"></p>
     </main>
 
-    <main class="stage is-flow" id="ocarina" hidden>
-      <header>
-        <p class="eyebrow">时之笛</p>
-        <h1>哼出这首曲子</h1>
-        <p class="lede">先听整首。再从你舒服的音高哼，音和音之间差不多就行。</p>
-      </header>
-      <div class="modes exercise-switch" role="group" aria-label="曲子">
-        <button class="mode" type="button" data-song="lullaby" aria-pressed="true">塞尔达摇篮曲</button>
-        <button class="mode" type="button" data-song="epona" aria-pressed="false">伊波娜之歌</button>
-      </div>
-      <svg id="ocarina-lane" class="pitch-lane" viewBox="0 0 360 168" role="img" aria-label="旋律形状和你的音高"></svg>
-      <ol id="ocarina-notes" class="scale-row" aria-label="旋律"></ol>
-      <section class="readout ph-readout">
-        <p id="ocarina-note" class="note is-empty">·</p>
-        <p id="ocarina-detail" class="detail">点开始，先听整首</p>
-        <p id="ocarina-extra" class="spoken" aria-live="assertive"></p>
-      </section>
-      <div class="meter" title="输入响度">
-        <div id="ocarina-level" class="meter-level"></div>
-        <div id="ocarina-gate" class="meter-gate"></div>
-      </div>
-      <div class="actions">
-        <button id="ocarina-play" class="primary" type="button">开始</button>
-        <button id="ocarina-replay" class="ghost" type="button">再听一次</button>
-      </div>
-      <p class="hint">钢琴按游戏里的拍子弹。格子是这首的形状，圆点是你的音高。从哪个音开始都行，后面跟着这个形状走，差在一个半音以内就算。哼错就从头再来。请戴耳机。</p>
-      <p id="ocarina-status" class="status" role="status"></p>
-    </main>
-
     <main class="stage is-flow" id="vibrato" hidden>
       <header>
         <p class="eyebrow">颤音</p>
@@ -268,7 +238,7 @@
 
       <section class="settings-block">
         <h2>钢琴</h2>
-        <p class="hint">音高朗读的试听、音准训练、咽音练习、环倾和时之笛用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
+        <p class="hint">音高朗读的试听、音准训练、咽音练习和环倾用的是 Salamander Grand Piano 采样，作者 Alexander Holm，CC BY 3.0。音量只影响钢琴，不影响麦克风。</p>
         <label>
           钢琴音量
           <input id="piano-volume" type="range" min="0" max="100" step="1" value="80" />
@@ -302,7 +272,7 @@
         </label>
         <p class="hint">念出音名，以及「高了」「低了」「过关」「学会了」。关掉以后，音名和这些话还写在屏幕上。</p>
         <p>
-          电平要越过白点才收。音高朗读、音准训练、咽音练习和环倾的前两个练习，都要稳住这段时间才算。环倾的长音要把音稳住 1 秒以上。停在当前音或比它更高的音上都可以。时之笛也是稳住之后才把这个音记进曲子。颤音数的是音高起伏，开口就记。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
+          电平要越过白点才收。音高朗读、音准训练、咽音练习和环倾的前两个练习，都要稳住这段时间才算。环倾的长音要把音稳住 1 秒以上。停在当前音或比它更高的音上都可以。颤音数的是音高起伏，开口就记。几个练习用同一道门限。房间吵的时候，把门限往右拨。滑音经过的音不会每个都念。
         </p>
       </section>
       <p id="settings-status" class="status" role="status"></p>

@@ -48,6 +48,7 @@ let expectStop = false
 let singStarted = 0
 let quietSince = 0
 let finishing = false
+let liveNote: string | null = null
 const peak = new PeakHold()
 
 const listener = new PitchListener((detection) => {
@@ -66,7 +67,8 @@ const listener = new PitchListener((detection) => {
   const stable = detection.result.stable
   peak.push(folded, stable)
   const live = labelForMidi(folded, step.group.notes)
-  noteEl.textContent = formatPracticeNote(live)
+  liveNote = formatPracticeNote(live)
+  noteEl.textContent = liveNote
   noteEl.className = stable ? 'note is-stable' : 'note is-live'
   detailEl.textContent = stable
     ? peak.highest == null
@@ -166,12 +168,14 @@ async function playNext(): Promise<void> {
 
 async function run(): Promise<void> {
   if (phase === 'playing' || phase === 'singing') return
+  silenceSpeech()
   const played = await playScale()
   if (!played) return
   phase = 'singing'
   singStarted = performance.now()
   quietSince = 0
   finishing = false
+  liveNote = null
   peak.reset()
   render()
   try {
@@ -264,7 +268,7 @@ function render(): void {
     detailEl.textContent = '播放音阶，然后唱到最高音'
     highestEl.textContent = ''
     renderMeter(0)
-  } else if (phase === 'singing' && peak.highest == null) {
+  } else if (phase === 'singing' && peak.highest == null && liveNote == null) {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
     detailEl.textContent = '现在唱，够到最高的音'
