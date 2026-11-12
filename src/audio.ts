@@ -1,6 +1,7 @@
 import { MedianPitch, NoteLock, PitchDetector, type LockResult } from './pitch.ts'
 import { startPianoNote } from './scale-player.ts'
 import { readSettings } from './settings.ts'
+import { appIsSpeaking } from './speak.ts'
 
 export type ListenMode = 'idle' | 'mic' | 'test'
 
@@ -155,7 +156,7 @@ export class PitchListener {
 
   private handleFrame(frame: WorkletMessage): void {
     if (this.mode === 'idle' || !this.context) return
-    const speaking = 'speechSynthesis' in window && window.speechSynthesis.speaking
+    const speaking = appIsSpeaking()
     const estimate =
       frame.rms >= this.rmsMin ? this.detector.detect(frame.samples, this.context.sampleRate) : null
     const freq = estimate && estimate.clarity >= CLARITY_MIN ? estimate.freq : null
