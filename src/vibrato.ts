@@ -5,8 +5,10 @@ import {
   CYCLE_MARKS,
   CYCLE_MIN,
   SPEEDS,
+  WAVE_SCALE_CENTS,
   displayCents,
   displayWaveY,
+  formatSwing,
   readVibrato,
   speedForRate,
   type VibratoRead,
@@ -15,6 +17,8 @@ import {
 } from './vibrato-read.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
+const PLOT_LEFT = 40
+const PLOT_RIGHT = 352
 const VOWEL_KEY = 'pitch-reader-vib-vowel'
 const REGISTER_KEY = 'pitch-reader-vib-register'
 const EXERCISE_KEY = 'pitch-reader-vib-exercise'
@@ -263,22 +267,19 @@ function extraFor(read: VibratoRead | null, speed: VibratoSpeed | null): string 
 
 function paintWave(bout: readonly VibratoSample[]): void {
   waveEl.replaceChildren()
-  const axis = document.createElementNS(SVG_NS, 'line')
-  axis.setAttribute('x1', '8')
-  axis.setAttribute('x2', '352')
-  axis.setAttribute('y1', '60')
-  axis.setAttribute('y2', '60')
-  axis.setAttribute('stroke', '#313228')
-  axis.setAttribute('stroke-width', '1')
-  waveEl.append(axis)
-  if (bout.length < 2) return
+  paintScale()
+  if (bout.length < 2) {
+    paintRange(null)
+    return
+  }
   const end = bout[bout.length - 1].time
   const windowed = bout.filter((sample) => sample.time >= end - WAVE_MS)
   const center = windowed.reduce((sum, sample) => sum + sample.midi, 0) / windowed.length
   const start = end - WAVE_MS
   const cents = displayCents(windowed.map((sample) => (sample.midi - center) * 100))
+  const width = PLOT_RIGHT - PLOT_LEFT
   const points = windowed.map((sample, index) => ({
-    x: 8 + ((sample.time - start) / WAVE_MS) * 344,
+    x: PLOT_LEFT + ((sample.time - start) / WAVE_MS) * width,
     y: displayWaveY(cents[index]),
   }))
   const line = document.createElementNS(SVG_NS, 'path')
@@ -289,6 +290,40 @@ function paintWave(bout: readonly VibratoSample[]): void {
   line.setAttribute('stroke-linejoin', 'round')
   line.setAttribute('stroke-linecap', 'round')
   waveEl.append(line)
+  paintRange(cents)
+}
+
+function paintScale(): void {
+  for (const cents of WAVE_SCALE_CENTS) {
+    const y = displayWaveY(cents)
+    const line = document.createElementNS(SVG_NS, 'line')
+    line.setAttribute('x1', String(PLOT_LEFT))
+    line.setAttribute('x2', String(PLOT_RIGHT))
+    line.setAttribute('y1', y.toFixed(1))
+    line.setAttribute('y2', y.toFixed(1))
+    line.setAttribute('stroke', cents === 0 ? '#6a6b5c' : '#3a3b32')
+    line.setAttribute('stroke-width', cents === 0 ? '1.25' : '1')
+    if (cents !== 0) line.setAttribute('stroke-dasharray', '2 4')
+    waveEl.append(line)
+    const label = document.createElementNS(SVG_NS, 'text')
+    label.setAttribute('x', String(PLOT_LEFT - 6))
+    label.setAttribute('y', y.toFixed(1))
+    label.setAttribute('text-anchor', 'end')
+    label.setAttribute('dominant-baseline', 'middle')
+    label.textContent = cents > 0 ? `+${cents}` : String(cents)
+    waveEl.append(label)
+  }
+}
+
+function paintRange(cents: readonly number[] | null): void {
+  const label = document.createElementNS(SVG_NS, 'text')
+  label.setAttribute('class', 'swing')
+  label.setAttribute('x', String(PLOT_RIGHT - 4))
+  label.setAttribute('y', '18')
+  label.setAttribute('text-anchor', 'end')
+  label.setAttribute('dominant-baseline', 'middle')
+  label.textContent = formatSwing(cents)
+  waveEl.append(label)
 }
 
 function smoothWavePath(points: readonly { x: number; y: number }[]): string {
