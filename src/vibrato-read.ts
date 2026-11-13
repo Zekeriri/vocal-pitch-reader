@@ -13,7 +13,8 @@ export type VibratoRead = {
 
 export const CYCLE_MARKS = 9
 export const CYCLE_MIN = 7
-export const MIN_SWING_CENTS = 35
+export const MIN_SWING_CENTS = 20
+export const WAVE_SCALE_CENTS = [75, 50, 25, 0, -25, -50, -75] as const
 
 export const SPEEDS: readonly { id: VibratoSpeed; title: string; low: number; high: number; label: string }[] = [
   { id: 'slow', title: '慢速', low: 3, high: 4, label: '3～4 次/秒' },
@@ -32,6 +33,14 @@ export function displayWaveY(cents: number): number {
   return Math.min(106, Math.max(14, 60 - cents * WAVE_PX_PER_CENT))
 }
 
+export function formatSwing(cents: readonly number[] | null): string {
+  if (cents == null || cents.length === 0) return '音分'
+  const top = Math.max(...cents, 0)
+  const bottom = Math.min(...cents, 0)
+  if (top < 1 && bottom > -1) return '0 音分'
+  return `+${Math.round(top)} / ${Math.round(bottom)} 音分`
+}
+
 function smoothCents(cents: readonly number[]): number[] {
   return cents.map((_, index) => {
     const left = cents[Math.max(0, index - 1)]
@@ -42,7 +51,7 @@ function smoothCents(cents: readonly number[]): number[] {
 }
 
 export function speedForRate(rate: number): VibratoSpeed | null {
-  const rounded = Math.round(rate * 100) / 100
+  const rounded = Math.round(rate * 10) / 10
   const found = SPEEDS.find((speed) => rounded >= speed.low && rounded < speed.high)
   return found?.id ?? null
 }
@@ -68,14 +77,10 @@ function countCycles(samples: readonly VibratoSample[]): number {
 
 function rateOf(samples: readonly VibratoSample[]): number | null {
   const marks = turns(samples)
-  const periods: number[] = []
-  for (let index = 0; index + 2 < marks.length; index += 2) {
-    periods.push(marks[index + 2] - marks[index])
-  }
-  if (periods.length === 0) return null
-  const mean = periods.reduce((sum, period) => sum + period, 0) / periods.length
-  if (mean <= 0) return null
-  return 1000 / mean
+  if (marks.length < 3) return null
+  const span = marks[marks.length - 1] - marks[0]
+  if (span <= 0) return null
+  return ((marks.length - 1) * 500) / span
 }
 
 function depthOf(samples: readonly VibratoSample[]): number | null {
