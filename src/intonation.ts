@@ -1,4 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
+import { createSelfInput, stepSelfInput, type SelfInputState } from './intonation-input.ts'
 import {
   judgePitch,
   makeRound,
@@ -8,6 +9,7 @@ import {
   RANGE_FLOOR,
   ROUND_LENGTH,
   verdictText,
+  type Verdict,
 } from './intonation-round.ts'
 import {
   TRACE_GUIDE_CENTS,
@@ -19,7 +21,7 @@ import {
 } from './intonation-trace.ts'
 import { formatNote, freqToMidi, midiToName, type LockResult } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
-import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
+import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -54,11 +56,14 @@ const KIND_KEY = 'pitch-reader-tune-kind'
 
 type Phase = 'idle' | 'playing' | 'listening' | 'passed'
 type Kind = 'round' | 'input'
-type InputPhase = 'idle' | 'capture' | 'sing' | 'ready'
+type InputPhase = 'idle' | 'live'
 
 let kind: Kind = storedKind()
 let inputPhase: InputPhase = 'idle'
-let inputTarget: number | null = null
+let selfInput: SelfInputState = createSelfInput()
+let liveVerdict: Verdict | null = null
+let liveMidi: number | null = null
+let settledVerdict: Verdict | null = null
 let phase: Phase = 'idle'
 let targets: number[] = []
 let index = 0
@@ -83,8 +88,12 @@ const listener = new PitchListener((detection) => {
 }, () => {
   if (expectStop) return
   if (kind === 'input') {
-    if (inputPhase === 'capture' || inputPhase === 'sing') {
-      inputPhase = inputTarget == null ? 'idle' : 'ready'
+    if (inputPhase === 'live') {
+      inputPhase = 'idle'
+      selfInput = createSelfInput()
+      liveVerdict = null
+      liveMidi = null
+      settledVerdict = null
       render()
     }
     return
@@ -111,7 +120,7 @@ startButton.addEventListener('click', () => {
 })
 replayButton.addEventListener('click', () => {
   if (kind === 'input') {
-    void startCapture()
+    restartInput()
     return
   }
   if (phase === 'listening' || phase === 'playing') void present()
@@ -133,7 +142,10 @@ export function stopIntonation(): void {
   clearTrace()
   phase = 'idle'
   inputPhase = 'idle'
-  inputTarget = null
+  selfInput = createSelfInput()
+  liveVerdict = null
+  liveMidi = null
+  settledVerdict = null
   render()
 }
 
@@ -240,31 +252,28 @@ function haltMic(): void {
 }
 
 function onInputFrame(speaking: boolean, result: LockResult): void {
-  if (speaking) return
-  if (inputPhase === 'capture') {
-    if (result.stable && result.midi != null) {
-      const next = Math.round(result.midi)
-      if (next !== inputTarget) {
-        inputTarget = next
-        clearTrace()
-        render()
-      }
-    }
-    if (inputTarget != null && result.freq != null) rememberPitch(result.freq)
-    paintTrace()
-    if (inputTarget != null) return
-    if (result.note) {
-      noteEl.textContent = formatNote(result.note)
-      noteEl.className = 'note is-live'
-    }
-    detailEl.textContent = '弹一个单音'
-    extraEl.textContent = ''
-    return
+  if (speaking || inputPhase !== 'live') return
+  const step = stepSelfInput(
+    selfInput,
+    {
+      time: performance.now(),
+      freq: result.freq,
+      midi: result.midi,
+      stable: result.stable,
+    },
+    Math.round(readSettings().noteSeconds * 1000),
+  )
+  selfInput = step.state
+  liveVerdict = step.live
+  liveMidi = step.live == null ? null : result.midi
+  if (result.freq != null) settledVerdict = null
+  if (step.locked != null || step.passed || step.armed) clearTrace()
+  if (step.speak) {
+    settledVerdict = step.speak
+    prompt(verdictText(step.speak))
   }
-  if (inputPhase !== 'sing' || result.freq == null) return
-  rememberPitch(result.freq)
-  paintTrace()
-  showVerdict(result, false)
+  if (selfInput.phase === 'sing' && !selfInput.waitGap && result.freq != null) rememberPitch(result.freq)
+  render()
 }
 
 function showVerdict(result: LockResult, advanceOnMatch: boolean): void {
@@ -288,59 +297,48 @@ function showVerdict(result: LockResult, advanceOnMatch: boolean): void {
 }
 
 async function onInputPrimary(): Promise<void> {
-  if (inputPhase === 'idle') {
-    await startCapture()
-    return
-  }
-  if (inputPhase === 'capture') {
-    if (inputTarget == null) stopInput()
-    else await startSing()
-    return
-  }
-  if (inputPhase === 'sing') {
-    finishSing()
-    return
-  }
-  await startSing()
+  if (inputPhase === 'idle') await startInput()
+  else stopInput()
 }
 
-async function startCapture(): Promise<void> {
-  inputTarget = null
+function restartInput(): void {
+  selfInput = createSelfInput()
+  liveVerdict = null
+  liveMidi = null
+  settledVerdict = null
   clearTrace()
   statusEl.textContent = ''
-  inputPhase = 'capture'
+  if (inputPhase !== 'live') {
+    void startInput()
+    return
+  }
+  render()
+}
+
+async function startInput(): Promise<void> {
+  selfInput = createSelfInput()
+  liveVerdict = null
+  liveMidi = null
+  settledVerdict = null
+  clearTrace()
+  statusEl.textContent = ''
+  inputPhase = 'live'
   haltMic()
   render()
   const opened = await openInputMic()
-  if (!opened && inputPhase === 'capture') {
+  if (!opened && inputPhase === 'live') {
     inputPhase = 'idle'
     render()
   }
 }
 
-async function startSing(): Promise<void> {
-  if (inputTarget == null) return
-  clearTrace()
-  statusEl.textContent = ''
-  inputPhase = 'sing'
-  haltMic()
-  render()
-  const opened = await openInputMic()
-  if (!opened && inputPhase === 'sing') {
-    inputPhase = 'ready'
-    render()
-  }
-}
-
-function finishSing(): void {
-  haltMic()
-  inputPhase = inputTarget == null ? 'idle' : 'ready'
-  render()
-}
-
 function stopInput(): void {
   haltMic()
-  inputTarget = null
+  silenceSpeech()
+  selfInput = createSelfInput()
+  liveVerdict = null
+  liveMidi = null
+  settledVerdict = null
   clearTrace()
   inputPhase = 'idle'
   render()
@@ -366,7 +364,10 @@ function setKind(next: Kind): void {
   clearTrace()
   phase = 'idle'
   inputPhase = 'idle'
-  inputTarget = null
+  selfInput = createSelfInput()
+  liveVerdict = null
+  liveMidi = null
+  settledVerdict = null
   statusEl.textContent = ''
   render()
 }
@@ -414,45 +415,72 @@ function render(): void {
 }
 
 function renderInput(): void {
-  const capturing = inputPhase === 'capture'
+  const running = inputPhase === 'live'
   startButton.disabled = false
-  replayButton.disabled = inputTarget == null
+  replayButton.disabled = !running
   replayButton.textContent = '重弹'
-  if (inputPhase === 'idle') startButton.textContent = '听我弹'
-  else if (capturing) startButton.textContent = inputTarget == null ? '取消' : '开始唱'
-  else if (inputPhase === 'sing') startButton.textContent = '唱完了'
-  else startButton.textContent = '再唱一次'
-  if (inputPhase === 'idle') {
+  startButton.textContent = running ? '结束' : '听我弹'
+  if (!running) {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    detailEl.textContent = '弹一个单音'
+    detailEl.textContent = '按住琴上的一个音'
     extraEl.textContent = ''
     renderMeter(0)
-  } else if (capturing) {
-    if (inputTarget == null) {
-      noteEl.textContent = '·'
-      noteEl.className = 'note is-empty'
-      detailEl.textContent = '弹一个单音'
-    } else {
-      noteEl.textContent = noteName(inputTarget)
-      noteEl.className = 'note is-tuned'
-      detailEl.textContent = '就是这个，点开始唱'
-    }
+    root.dataset.state = 'idle'
+    paintTrace()
+    return
+  }
+  const target = selfInput.target
+  if (selfInput.phase === 'sing' && selfInput.waitGap && target != null) {
+    noteEl.textContent = noteName(target)
+    noteEl.className = 'note is-tuned'
+    detailEl.textContent = '松开后再唱'
     extraEl.textContent = ''
-  } else if (inputPhase === 'sing') {
+  } else if (selfInput.phase === 'sing') {
+    paintSungReadout(target)
+  } else if (selfInput.waitGap) {
+    noteEl.textContent = '准'
+    noteEl.className = 'note is-tuned'
+    detailEl.textContent = '再弹下一个音'
+    extraEl.textContent = ''
+  } else if (selfInput.pendingMidi != null) {
+    noteEl.textContent = noteName(selfInput.pendingMidi)
+    noteEl.className = 'note is-live'
+    detailEl.textContent = '再按住一会儿'
+    extraEl.textContent = ''
+  } else {
+    noteEl.textContent = '·'
+    noteEl.className = 'note is-empty'
+    detailEl.textContent = '按住琴上的一个音'
+    extraEl.textContent = ''
+  }
+  root.dataset.state = selfInput.phase === 'sing' && !selfInput.waitGap ? 'listening' : 'idle'
+  paintTrace()
+}
+
+function paintSungReadout(target: number | null): void {
+  const verdict = liveVerdict ?? settledVerdict
+  if (verdict == null || target == null) {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
     detailEl.textContent = '对着亮线唱'
     extraEl.textContent = ''
-  } else {
-    noteEl.textContent = inputTarget == null ? '·' : noteName(inputTarget)
-    noteEl.className = inputTarget == null ? 'note is-empty' : 'note is-tuned'
-    detailEl.textContent = '线留着，再唱一次'
-    extraEl.textContent = ''
-    renderMeter(0)
+    return
   }
-  root.dataset.state = inputPhase === 'sing' ? 'listening' : 'idle'
-  paintTrace()
+  noteEl.textContent = verdictText(verdict)
+  noteEl.className = verdict === 'match' ? 'note is-tuned' : 'note is-stable'
+  if (liveVerdict === 'match') {
+    detailEl.textContent = '稳住，把这个音唱完'
+    extraEl.textContent = ''
+    return
+  }
+  if (liveVerdict == null) {
+    detailEl.textContent = '这个音唱完了，再来一次'
+    extraEl.textContent = verdictText(verdict)
+    return
+  }
+  detailEl.textContent = liveMidi == null ? '把这个音唱完' : `唱成了 ${noteName(liveMidi)}`
+  extraEl.textContent = verdictText(verdict)
 }
 
 function applyKind(): void {
@@ -460,12 +488,12 @@ function applyKind(): void {
   roundEl.hidden = input
   roundTab.setAttribute('aria-pressed', input ? 'false' : 'true')
   inputTab.setAttribute('aria-pressed', input ? 'true' : 'false')
-  titleEl.textContent = input ? '对着一个音唱' : '连准十个音'
+  titleEl.textContent = input ? '对着琴上的音唱' : '连准十个音'
   ledeEl.textContent = input
-    ? '先在琴上弹一个音。亮线留下以后再唱，贴上去就准。'
+    ? '先按住琴上的一个音。记下来以后松开，再把这个音唱完。唱准了就接着弹下一个。'
     : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = input
-    ? '点「听我弹」，弹一个单音。稳住以后点「开始唱」。音高线贴上亮线就准，差在 25 音分以内。'
+    ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后再唱，把整个音唱完。唱到一半不会出声打断。音要落在亮线上下 25 音分里，并稳住设置里「每个音」那么久，才算准。准了就自动等你弹下一个音。'
     : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
 }
 
@@ -486,8 +514,8 @@ function clearTrace(): void {
 
 function currentTarget(): number | null {
   if (kind === 'input') {
-    if (inputPhase === 'idle') return null
-    return inputTarget
+    if (inputPhase !== 'live') return null
+    return selfInput.target
   }
   if (phase === 'idle' || targets.length === 0) return null
   return targets[Math.min(index, targets.length - 1)] ?? null
