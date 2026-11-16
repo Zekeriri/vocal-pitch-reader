@@ -113,6 +113,7 @@ export class PitchDetector {
       }
     }
     if (tau < 0 || cmnd[tau] >= threshold) return null
+    tau = this.lowerOctave(cmnd, tau, maxTau)
 
     const s0 = cmnd[tau - 1]
     const s1 = cmnd[tau]
@@ -128,6 +129,22 @@ export class PitchDetector {
     const freq = rate / better
     if (freq < MIN_FREQ || freq > MAX_FREQ) return null
     return { freq, clarity: 1 - s1 }
+  }
+
+  /** A bright tone can look periodic at half the real period. Step down when that lower period fits much better. */
+  private lowerOctave(cmnd: Float32Array, tau: number, maxTau: number): number {
+    const doubled = tau * 2
+    if (doubled > maxTau - 1) return tau
+    let best = Math.round(doubled)
+    const lo = Math.max(tau + 1, best - 4)
+    const hi = Math.min(maxTau - 1, best + 4)
+    for (let cursor = lo; cursor <= hi; cursor++) {
+      if (cmnd[cursor] < cmnd[best]) best = cursor
+    }
+    if (best <= tau || best >= maxTau) return tau
+    if (cmnd[best] > cmnd[best - 1] || cmnd[best] > cmnd[best + 1]) return tau
+    if (cmnd[tau] > 0.05 && cmnd[best] < 0.02 && cmnd[best] < cmnd[tau] * 0.35) return best
+    return tau
   }
 
   private prepare(buffer: Float32Array, sampleRate: number): { signal: Float32Array; rate: number } {
@@ -171,6 +188,7 @@ export class MedianPitch {
 export class NoteLock {
   private pendingMidi: number | null = null
   private pendingSince = 0
+  private octaveSince: number | null = null
   private lockedMidi: number | null = null
   private lastSpoken: number | null = null
   private unvoicedSince: number | null = null
@@ -191,6 +209,7 @@ export class NoteLock {
   reset(): void {
     this.pendingMidi = null
     this.pendingSince = 0
+    this.octaveSince = null
     this.lockedMidi = null
     this.lastSpoken = null
     this.unvoicedSince = null
@@ -203,13 +222,15 @@ export class NoteLock {
       if (gap >= 80) {
         this.pendingMidi = null
         this.lockedMidi = null
+        this.octaveSince = null
       }
       if (gap >= this.releaseMs) this.lastSpoken = null
       return EMPTY_LOCK
     }
 
     this.unvoicedSince = null
-    const midiFloat = freqToMidi(freq)
+    const heard = this.withoutOctaveJump(timeMs, freq)
+    const midiFloat = freqToMidi(heard)
     let target = Math.round(midiFloat)
     const anchor = this.lockedMidi ?? this.pendingMidi
     if (anchor != null && Math.abs(midiFloat - anchor) * 100 <= this.hysteresisCents) {
@@ -232,10 +253,35 @@ export class NoteLock {
     return {
       note: midiToName(target),
       midi: target,
-      freq,
+      freq: heard,
       cents: (midiFloat - target) * 100,
       stable,
       announce,
     }
+  }
+
+  /** A one-octave slip that has not settled yet stays on the note already locked. */
+  private withoutOctaveJump(timeMs: number, freq: number): number {
+    const anchor = this.lockedMidi ?? this.pendingMidi
+    if (anchor == null) {
+      this.octaveSince = null
+      return freq
+    }
+    const midiFloat = freqToMidi(freq)
+    const octaves = Math.round((midiFloat - anchor) / 12)
+    const folded = midiFloat - octaves * 12
+    const flicker = Math.abs(octaves) === 1 && Math.abs(folded - anchor) * 100 <= this.hysteresisCents
+    if (!flicker) {
+      this.octaveSince = null
+      return freq
+    }
+    if (this.octaveSince == null) this.octaveSince = timeMs
+    if (timeMs - this.octaveSince < this.holdMs) return freq / 2 ** octaves
+    const jumped = Math.round(midiFloat)
+    this.pendingMidi = jumped
+    this.pendingSince = this.octaveSince
+    this.lockedMidi = jumped
+    this.octaveSince = null
+    return freq
   }
 }

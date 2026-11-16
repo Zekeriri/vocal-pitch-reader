@@ -82,6 +82,29 @@ describe('PitchDetector', () => {
     expect(midiToName(Math.round(freqToMidi(hit!.freq)))).toBe('G3')
   })
 
+  it('keeps the fundamental when a higher harmonic is louder', () => {
+    const parts: Array<[number, number]> = [
+      [1, 0.25],
+      [2, 1],
+      [3, 0.2],
+      [4, 0.7],
+      [5, 0.1],
+    ]
+    for (const freq of [110, 196, 261.63, 392]) {
+      const buffer = new Float32Array(length)
+      for (let i = 0; i < length; i++) {
+        let sample = 0
+        for (const [harmonic, amp] of parts) {
+          sample += amp * Math.sin((2 * Math.PI * freq * harmonic * i) / rate)
+        }
+        buffer[i] = sample
+      }
+      const hit = detector.detect(buffer, rate)
+      expect(hit).not.toBeNull()
+      expect(midiToName(Math.round(freqToMidi(hit!.freq)))).toBe(midiToName(Math.round(freqToMidi(freq))))
+    }
+  })
+
   it('ignores silence and noise', () => {
     expect(detector.detect(new Float32Array(length), rate)).toBeNull()
     expect(detector.detect(noise(length), rate)).toBeNull()
@@ -150,6 +173,16 @@ describe('NoteLock', () => {
       second = lock.update(time, 196).announce ?? second
     }
     expect(second).toBe('G3')
+  })
+
+  it('ignores an octave jump until that pitch has settled', () => {
+    const lock = new NoteLock(300, 500)
+    for (let time = 0; time <= 400; time += 20) lock.update(time, 196)
+    const slipped = lock.update(420, 392)
+    expect(slipped.note).toBe('G3')
+    expect(slipped.freq).toBeCloseTo(196, 0)
+    const held = lock.update(760, 392)
+    expect(held.note).toBe('G4')
   })
 
   it('does not speak a short blip', () => {
