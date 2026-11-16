@@ -32,7 +32,7 @@ export type SelfInputStep = {
   locked: number | null
   passed: boolean
   armed: boolean
-  /** Spoken only after a sung note has ended, and only when it missed. */
+  /** Spoken after a miss ends, or once a matched note has been held long enough. */
   speak: Verdict | null
   /** On-screen verdict while the sung note is still going. Never spoken. */
   live: Verdict | null
@@ -158,6 +158,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       passed = true
+      speak = 'match'
     }
   } else {
     next.matchSince = null

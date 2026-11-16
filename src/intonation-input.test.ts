@@ -106,7 +106,7 @@ describe('self-input loop', () => {
     expect(matched.speak).toBeNull()
     const done = stepSelfInput(matched.state, heard(at + 200 + NOTE_MS, 60, 10), NOTE_MS)
     expect(done.passed).toBe(true)
-    expect(done.speak).toBeNull()
+    expect(done.speak).toBe('match')
     expect(done.state.phase).toBe('capture')
     expect(done.state.target).toBeNull()
     expect(done.state.waitGap).toBe(true)
@@ -131,6 +131,7 @@ describe('self-input loop', () => {
     const back = stepSelfInput(open.state, heard(began + 500 + 40, 60, 0), NOTE_MS)
     const passed = stepSelfInput(back.state, heard(began + NOTE_MS, 60, 0), NOTE_MS)
     expect(passed.passed).toBe(true)
+    expect(passed.speak).toBe('match')
 
     const again = stepSelfInput(readyToSing().state, heard(began, 60, 0), NOTE_MS)
     const hole = stepSelfInput(again.state, quiet(began + 500), NOTE_MS)
