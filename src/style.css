@@ -107,6 +107,12 @@ input {
   gap: 0.15rem;
 }
 
+#tune-round {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
 .tune-wave {
   width: 100%;
   height: 8.5rem;

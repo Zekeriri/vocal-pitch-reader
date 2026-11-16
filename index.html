@@ -98,20 +98,26 @@
     <main class="stage is-flow" id="intonation" hidden>
       <header>
         <p class="eyebrow">音准训练</p>
-        <h1>连准十个音</h1>
-        <p class="lede">先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。</p>
+        <h1 id="tune-title">连准十个音</h1>
+        <p class="lede" id="tune-lede">先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。</p>
       </header>
-      <div class="range-pick">
-        <label>
-          最低
-          <select id="tune-low"></select>
-        </label>
-        <label>
-          最高
-          <select id="tune-high"></select>
-        </label>
+      <div class="modes exercise-switch" role="group" aria-label="音准方式">
+        <button class="mode" id="tune-tab-round" type="button" aria-pressed="true">十个音</button>
+        <button class="mode" id="tune-tab-input" type="button" aria-pressed="false">自输入</button>
       </div>
-      <ol id="tune-dots" class="dots" aria-label="十个音的进度"></ol>
+      <div id="tune-round">
+        <div class="range-pick">
+          <label>
+            最低
+            <select id="tune-low"></select>
+          </label>
+          <label>
+            最高
+            <select id="tune-high"></select>
+          </label>
+        </div>
+        <ol id="tune-dots" class="dots" aria-label="十个音的进度"></ol>
+      </div>
       <svg id="tune-wave" class="tune-wave" viewBox="0 0 360 120" preserveAspectRatio="none" role="img" aria-label="音高线，亮线是要唱的音"></svg>
       <section class="readout ph-readout">
         <p id="tune-note" class="note is-empty">·</p>
@@ -126,7 +132,7 @@
         <button id="tune-start" class="primary" type="button">开始</button>
         <button id="tune-replay" class="ghost" type="button">再听一次</button>
       </div>
-      <p class="hint">中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。</p>
+      <p id="tune-hint" class="hint">中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。</p>
       <p id="tune-status" class="status" role="status"></p>
     </main>
 
