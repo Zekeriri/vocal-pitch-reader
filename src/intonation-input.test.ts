@@ -105,11 +105,15 @@ describe('self-input loop', () => {
     expect(matched.passed).toBe(false)
     expect(matched.speak).toBeNull()
     const done = stepSelfInput(matched.state, heard(at + 200 + NOTE_MS, 60, 10), NOTE_MS)
-    expect(done.passed).toBe(true)
+    expect(done.passed).toBe(false)
     expect(done.speak).toBe('match')
-    expect(done.state.phase).toBe('capture')
-    expect(done.state.target).toBeNull()
-    expect(done.state.waitGap).toBe(true)
+    expect(done.state.matchHeld).toBe(true)
+    expect(done.state.phase).toBe('sing')
+    expect(done.state.target).toBe(60)
+    const still = stepSelfInput(done.state, heard(at + 200 + NOTE_MS + 200, 60, 0), NOTE_MS)
+    expect(still.speak).toBeNull()
+    expect(still.state.target).toBe(60)
+    expect(still.state.phase).toBe('sing')
   })
 
   it('does not pass a matched note that stops halfway', () => {
@@ -130,8 +134,10 @@ describe('self-input loop', () => {
     const open = stepSelfInput(singing.state, quiet(began + 500), NOTE_MS)
     const back = stepSelfInput(open.state, heard(began + 500 + 40, 60, 0), NOTE_MS)
     const passed = stepSelfInput(back.state, heard(began + NOTE_MS, 60, 0), NOTE_MS)
-    expect(passed.passed).toBe(true)
+    expect(passed.passed).toBe(false)
     expect(passed.speak).toBe('match')
+    expect(passed.state.phase).toBe('sing')
+    expect(passed.state.target).toBe(60)
 
     const again = stepSelfInput(readyToSing().state, heard(began, 60, 0), NOTE_MS)
     const hole = stepSelfInput(again.state, quiet(began + 500), NOTE_MS)
@@ -142,25 +148,31 @@ describe('self-input loop', () => {
     expect(tooSoon.passed).toBe(false)
   })
 
-  it('returns to a new reference note and ignores the sung tail', () => {
+  it('keeps the same note after a match so practice can continue', () => {
     const { state, at } = readyToSing(60)
     const began = at + 10
     const holding = stepSelfInput(state, heard(began, 60, 0), NOTE_MS)
     const done = stepSelfInput(holding.state, heard(began + NOTE_MS, 60, 0), NOTE_MS)
-    expect(done.passed).toBe(true)
+    expect(done.speak).toBe('match')
+    expect(done.state.phase).toBe('sing')
+    expect(done.state.target).toBe(60)
 
-    const tail = stepSelfInput(done.state, heard(began + NOTE_MS + 300, 60, 0), NOTE_MS)
+    const tail = stepSelfInput(done.state, heard(began + NOTE_MS + 300, 64, 0), NOTE_MS)
     expect(tail.locked).toBeNull()
-    expect(tail.state.phase).toBe('capture')
-    expect(tail.state.waitGap).toBe(true)
+    expect(tail.state.phase).toBe('sing')
+    expect(tail.state.target).toBe(60)
+    expect(tail.live).toBe('high')
 
-    const nextKey = stepSelfInput(tail.state, heard(began + NOTE_MS + 400, 64), NOTE_MS)
-    expect(nextKey.state.waitGap).toBe(false)
-    expect(nextKey.state.pendingMidi).toBe(64)
-    const locked = stepSelfInput(nextKey.state, heard(began + NOTE_MS + 400 + NOTE_MS, 64), NOTE_MS)
-    expect(locked.locked).toBe(64)
-    expect(locked.state.phase).toBe('sing')
-    expect(locked.state.waitGap).toBe(true)
+    const quietAt = began + NOTE_MS + 400
+    const opening = stepSelfInput(done.state, quiet(quietAt), NOTE_MS)
+    const ended = stepSelfInput(opening.state, quiet(quietAt + INPUT_GAP_MS), NOTE_MS)
+    expect(ended.speak).toBeNull()
+    expect(ended.state.phase).toBe('sing')
+    expect(ended.state.target).toBe(60)
+    const again = stepSelfInput(ended.state, heard(quietAt + INPUT_GAP_MS + 20, 60, 0), NOTE_MS)
+    const praised = stepSelfInput(again.state, heard(quietAt + INPUT_GAP_MS + 20 + NOTE_MS, 60, 0), NOTE_MS)
+    expect(praised.speak).toBe('match')
+    expect(praised.state.target).toBe(60)
   })
 
   it('restarts the keyboard hold when the note changes or drops out', () => {

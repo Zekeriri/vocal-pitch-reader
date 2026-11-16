@@ -16,6 +16,8 @@ export type SelfInputState = {
   pendingMidi: number | null
   pendingSince: number | null
   matchSince: number | null
+  /** This continuous in-tune hold has already been spoken. */
+  matchHeld: boolean
   phraseVerdict: Verdict | null
   voiced: boolean
 }
@@ -48,6 +50,7 @@ export function createSelfInput(): SelfInputState {
     pendingMidi: null,
     pendingSince: null,
     matchSince: null,
+    matchHeld: false,
     phraseVerdict: null,
     voiced: false,
   }
@@ -69,6 +72,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       next.matchSince = null
+      next.matchHeld = false
     }
     if (quiet >= INPUT_GAP_MS) {
       const waiting = next.waitGap
@@ -91,6 +95,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       next.matchSince = null
+      next.matchHeld = false
     }
     if (quiet >= INPUT_GAP_MS) {
       if (next.waitGap) {
@@ -130,6 +135,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       next.matchSince = null
+      next.matchHeld = false
       next.phraseVerdict = null
       next.voiced = false
       locked = frame.midi
@@ -140,6 +146,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
   next.voiced = true
   if (!frame.stable || next.target == null) {
     next.matchSince = null
+    next.matchHeld = false
     return { state: next, locked, passed, armed, speak, live }
   }
   const verdict = judgePitch(frame.freq, next.target)
@@ -147,21 +154,13 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
   live = verdict
   if (verdict === 'match') {
     if (next.matchSince == null) next.matchSince = frame.time
-    if (frame.time - next.matchSince >= noteHold) {
-      next.phase = 'capture'
-      next.ignoreMidi = frame.midi
-      next.waitGap = true
-      next.target = null
-      next.matchSince = null
-      next.phraseVerdict = null
-      next.voiced = false
-      next.pendingMidi = null
-      next.pendingSince = null
-      passed = true
+    if (!next.matchHeld && frame.time - next.matchSince >= noteHold) {
+      next.matchHeld = true
       speak = 'match'
     }
   } else {
     next.matchSince = null
+    next.matchHeld = false
   }
   return { state: next, locked, passed, armed, speak, live }
 }

@@ -418,7 +418,7 @@ function renderInput(): void {
   const running = inputPhase === 'live'
   startButton.disabled = false
   replayButton.disabled = !running
-  replayButton.textContent = '重弹'
+  replayButton.textContent = selfInput.target == null ? '重弹' : '换一个音'
   startButton.textContent = running ? '结束' : '听我弹'
   if (!running) {
     noteEl.textContent = '·'
@@ -441,7 +441,7 @@ function renderInput(): void {
   } else if (selfInput.waitGap) {
     noteEl.textContent = '准'
     noteEl.className = 'note is-tuned'
-    detailEl.textContent = '再弹下一个音'
+    detailEl.textContent = '还可以继续唱'
     extraEl.textContent = ''
   } else if (selfInput.pendingMidi != null) {
     noteEl.textContent = noteName(selfInput.pendingMidi)
@@ -470,12 +470,12 @@ function paintSungReadout(target: number | null): void {
   noteEl.textContent = verdictText(verdict)
   noteEl.className = verdict === 'match' ? 'note is-tuned' : 'note is-stable'
   if (liveVerdict === 'match') {
-    detailEl.textContent = '稳住，把这个音唱完'
+    detailEl.textContent = selfInput.matchHeld ? '还可以继续唱' : '稳住，把这个音唱完'
     extraEl.textContent = ''
     return
   }
   if (liveVerdict == null) {
-    detailEl.textContent = '这个音唱完了，再来一次'
+    detailEl.textContent = verdict === 'match' ? '还可以再唱这个音' : '这个音唱完了，再来一次'
     extraEl.textContent = verdictText(verdict)
     return
   }
@@ -490,10 +490,10 @@ function applyKind(): void {
   inputTab.setAttribute('aria-pressed', input ? 'true' : 'false')
   titleEl.textContent = input ? '对着琴上的音唱' : '连准十个音'
   ledeEl.textContent = input
-    ? '先按住琴上的一个音。记下来以后松开，再把这个音唱完。唱准了就接着弹下一个。'
+    ? '先按住琴上的一个音。记下来以后松开，再把这个音唱完。唱准了还可以继续练，想换音再点「换一个音」。'
     : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = input
-    ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后再唱，把整个音唱完。唱到一半不会出声打断。音要落在亮线上下 25 音分里，并稳住设置里「每个音」那么久，才算准。准了会念「准」，然后自动等你弹下一个音。'
+    ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后再唱，把整个音唱完。唱到一半不会出声打断。音要落在亮线上下 25 音分里，并稳住设置里「每个音」那么久，才算准。准了会念「准」，还可以继续唱这个音。想换下一个，点「换一个音」。'
     : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
 }
 
