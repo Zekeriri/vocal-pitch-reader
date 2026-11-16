@@ -9,12 +9,24 @@ import {
   ROUND_LENGTH,
   verdictText,
 } from './intonation-round.ts'
-import { formatNote, midiToName } from './pitch.ts'
+import {
+  TRACE_GUIDE_CENTS,
+  TRACE_MATCH_CENTS,
+  smoothTrace,
+  traceSegments,
+  traceY,
+  type TracePoint,
+} from './intonation-trace.ts'
+import { formatNote, freqToMidi, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
+const SVG_NS = 'http://www.w3.org/2000/svg'
 const PROMPT_GAP_MS = 1500
+const TRACE_MS = 4000
+const PLOT_LEFT = 68
+const PLOT_RIGHT = 348
 
 const root = document.querySelector<HTMLElement>('#intonation')!
 const noteEl = document.querySelector<HTMLElement>('#tune-note')!
@@ -28,6 +40,7 @@ const replayButton = document.querySelector<HTMLButtonElement>('#tune-replay')!
 const lowSelect = document.querySelector<HTMLSelectElement>('#tune-low')!
 const highSelect = document.querySelector<HTMLSelectElement>('#tune-high')!
 const statusEl = document.querySelector<HTMLElement>('#tune-status')!
+const waveEl = document.querySelector<SVGSVGElement>('#tune-wave')!
 
 const LOW_KEY = 'pitch-reader-tune-low'
 const HIGH_KEY = 'pitch-reader-tune-high'
@@ -42,9 +55,14 @@ let abort: AbortController | null = null
 let expectStop = false
 let lastPrompt = ''
 let lastPromptAt = 0
+let trace: TracePoint[] = []
 
 const listener = new PitchListener((detection) => {
   renderMeter(detection.rms)
+  if (phase === 'listening' && !detection.speaking && detection.result.freq != null) {
+    rememberPitch(detection.result.freq)
+  }
+  if (phase === 'listening') paintTrace()
   if (phase !== 'listening' || detection.speaking) return
   const { result } = detection
   if (result.freq == null) return
@@ -65,6 +83,7 @@ const listener = new PitchListener((detection) => {
   else advance()
 }, () => {
   if (expectStop || phase !== 'listening') return
+  clearTrace()
   phase = 'idle'
   render()
 })
@@ -94,6 +113,7 @@ export function stopIntonation(): void {
   abort = null
   haltMic()
   silenceSpeech()
+  clearTrace()
   phase = 'idle'
   render()
 }
@@ -109,6 +129,7 @@ async function begin(): Promise<void> {
   targets = makeRound(ROUND_LENGTH, Math.random, low, high)
   index = 0
   statusEl.textContent = ''
+  clearTrace()
   await present()
 }
 
@@ -123,6 +144,7 @@ async function present(): Promise<void> {
   abort = controller
   phase = 'playing'
   lastPrompt = ''
+  clearTrace()
   haltMic()
   render()
   try {
@@ -174,6 +196,7 @@ function finishRound(): void {
   abort?.abort()
   haltMic()
   silenceSpeech()
+  clearTrace()
   phase = 'idle'
   render()
 }
@@ -226,6 +249,125 @@ function render(): void {
     extraEl.textContent = '过关'
   }
   root.dataset.state = phase
+  paintTrace()
+}
+
+function rememberPitch(freq: number): void {
+  const target = currentTarget()
+  if (target == null) return
+  trace.push({ time: performance.now(), cents: (freqToMidi(freq) - target) * 100 })
+  const latest = trace.at(-1)
+  if (!latest) return
+  const cutoff = latest.time - TRACE_MS
+  while (trace.length > 1 && trace[0].time < cutoff) trace.shift()
+  if (trace.length > 2000) trace.splice(0, trace.length - 2000)
+}
+
+function clearTrace(): void {
+  trace = []
+}
+
+function currentTarget(): number | null {
+  if (phase === 'idle' || targets.length === 0) return null
+  return targets[Math.min(index, targets.length - 1)] ?? null
+}
+
+function paintTrace(): void {
+  const target = currentTarget()
+  waveEl.replaceChildren()
+  waveEl.setAttribute('aria-label', target == null ? '音高线，亮线是要唱的音' : `音高线，亮线是 ${noteName(target)}`)
+  const bandTop = traceY(TRACE_MATCH_CENTS)
+  const bandBottom = traceY(-TRACE_MATCH_CENTS)
+  const band = document.createElementNS(SVG_NS, 'rect')
+  band.setAttribute('x', String(PLOT_LEFT))
+  band.setAttribute('y', bandTop.toFixed(1))
+  band.setAttribute('width', String(PLOT_RIGHT - PLOT_LEFT))
+  band.setAttribute('height', (bandBottom - bandTop).toFixed(1))
+  band.setAttribute('fill', '#f0b429')
+  band.setAttribute('opacity', '0.16')
+  waveEl.append(band)
+  for (const cents of TRACE_GUIDE_CENTS) {
+    const y = traceY(cents)
+    const line = document.createElementNS(SVG_NS, 'line')
+    line.setAttribute('x1', String(PLOT_LEFT))
+    line.setAttribute('x2', String(PLOT_RIGHT))
+    line.setAttribute('y1', y.toFixed(1))
+    line.setAttribute('y2', y.toFixed(1))
+    line.setAttribute('stroke', '#3a3b32')
+    line.setAttribute('stroke-width', '1')
+    line.setAttribute('stroke-dasharray', '2 4')
+    waveEl.append(line)
+    const label = document.createElementNS(SVG_NS, 'text')
+    label.setAttribute('x', String(PLOT_LEFT - 8))
+    label.setAttribute('y', y.toFixed(1))
+    label.setAttribute('text-anchor', 'end')
+    label.setAttribute('dominant-baseline', 'middle')
+    label.textContent = cents > 0 ? `+${cents}` : String(cents)
+    waveEl.append(label)
+  }
+  const targetY = traceY(0)
+  const glow = document.createElementNS(SVG_NS, 'line')
+  glow.setAttribute('x1', String(PLOT_LEFT))
+  glow.setAttribute('x2', String(PLOT_RIGHT))
+  glow.setAttribute('y1', targetY.toFixed(1))
+  glow.setAttribute('y2', targetY.toFixed(1))
+  glow.setAttribute('stroke', '#f0b429')
+  glow.setAttribute('stroke-width', '8')
+  glow.setAttribute('stroke-linecap', 'round')
+  glow.setAttribute('opacity', '0.28')
+  waveEl.append(glow)
+  const axis = document.createElementNS(SVG_NS, 'line')
+  axis.setAttribute('x1', String(PLOT_LEFT))
+  axis.setAttribute('x2', String(PLOT_RIGHT))
+  axis.setAttribute('y1', targetY.toFixed(1))
+  axis.setAttribute('y2', targetY.toFixed(1))
+  axis.setAttribute('stroke', '#f0b429')
+  axis.setAttribute('stroke-width', '2.5')
+  axis.setAttribute('stroke-linecap', 'round')
+  waveEl.append(axis)
+  const name = document.createElementNS(SVG_NS, 'text')
+  name.setAttribute('class', target == null ? '' : 'target')
+  name.setAttribute('x', String(PLOT_LEFT - 8))
+  name.setAttribute('y', targetY.toFixed(1))
+  name.setAttribute('text-anchor', 'end')
+  name.setAttribute('dominant-baseline', 'middle')
+  name.textContent = target == null ? '目标' : noteName(target)
+  waveEl.append(name)
+  const end = trace.at(-1)?.time ?? 0
+  const start = end - TRACE_MS
+  const windowed = trace.filter((point) => point.time >= start)
+  const width = PLOT_RIGHT - PLOT_LEFT
+  const latest = windowed.at(-1)
+  const matched = latest != null && Math.abs(latest.cents) <= TRACE_MATCH_CENTS
+  for (const segment of traceSegments(windowed)) {
+    const cents = smoothTrace(segment.map((point) => point.cents))
+    const points = segment.map((point, index) => ({
+      x: PLOT_LEFT + ((point.time - start) / TRACE_MS) * width,
+      y: traceY(cents[index] ?? point.cents),
+    }))
+    const line = document.createElementNS(SVG_NS, 'path')
+    line.setAttribute('d', tracePath(points))
+    line.setAttribute('fill', 'none')
+    line.setAttribute('stroke', matched ? '#d6e07a' : '#f4f0e6')
+    line.setAttribute('stroke-width', '2.5')
+    line.setAttribute('stroke-linejoin', 'round')
+    line.setAttribute('stroke-linecap', 'round')
+    waveEl.append(line)
+  }
+  if (latest) {
+    const dot = document.createElementNS(SVG_NS, 'circle')
+    dot.setAttribute('cx', String(PLOT_RIGHT))
+    dot.setAttribute('cy', traceY(latest.cents).toFixed(1))
+    dot.setAttribute('r', '3.5')
+    dot.setAttribute('fill', matched ? '#d6e07a' : '#f4f0e6')
+    waveEl.append(dot)
+  }
+}
+
+function tracePath(points: readonly { x: number; y: number }[]): string {
+  return points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(' ')
 }
 
 function paintDots(): void {
