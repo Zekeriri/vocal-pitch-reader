@@ -104,6 +104,16 @@
       <div class="modes exercise-switch" role="group" aria-label="音准方式">
         <button class="mode" id="tune-tab-round" type="button" aria-pressed="true">十个音</button>
         <button class="mode" id="tune-tab-input" type="button" aria-pressed="false">自输入</button>
+        <button class="mode" id="tune-tab-mobile" type="button" aria-pressed="false">移动版</button>
+      </div>
+      <div id="tune-mobile" hidden>
+        <div class="range-pick">
+          <label>
+            当前音
+            <select id="tune-mobile-note"></select>
+          </label>
+          <button id="tune-mobile-random" class="ghost" type="button">随机</button>
+        </div>
       </div>
       <div id="tune-round">
         <div class="range-pick">

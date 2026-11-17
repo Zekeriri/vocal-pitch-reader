@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { judgePitch, makeRound, MatchHold, NOTE_HIGH, NOTE_LOW, verdictText } from './intonation-round.ts'
+import {
+  judgePitch,
+  makeRound,
+  MatchHold,
+  NOTE_HIGH,
+  NOTE_LOW,
+  pickMobileNote,
+  RANGE_CEILING,
+  RANGE_FLOOR,
+  verdictText,
+} from './intonation-round.ts'
 
 function freqAtCents(midi: number, cents: number): number {
   return 440 * 2 ** ((midi - 69 + cents / 100) / 12)
@@ -32,6 +42,16 @@ describe('intonation round', () => {
     expect(round.every((midi) => midi >= 57 && midi <= 64)).toBe(true)
     expect(makeRound(4, () => 0.2, 60, 60)).toEqual([60, 60, 60, 60])
     expect(makeRound(3, () => 0, 70, 50).every((midi) => midi >= 50 && midi <= 70)).toBe(true)
+  })
+
+  it('picks a different note inside the mobile range', () => {
+    expect(pickMobileNote(60, () => 0)).toBe(RANGE_FLOOR)
+    expect(pickMobileNote(RANGE_FLOOR, () => 0)).toBe(RANGE_FLOOR + 1)
+    expect(pickMobileNote(RANGE_CEILING, () => 0.999)).toBe(RANGE_CEILING - 1)
+    expect(pickMobileNote(60, () => 0.999)).toBe(RANGE_CEILING)
+    expect(pickMobileNote(60, () => 0, 64, 64)).toBe(64)
+    const notes = Array.from({ length: 40 }, (_, index) => pickMobileNote(60, () => index / 40))
+    expect(notes.every((midi) => midi >= RANGE_FLOOR && midi <= RANGE_CEILING && midi !== 60)).toBe(true)
   })
 
   it('only passes after the match has stayed put', () => {

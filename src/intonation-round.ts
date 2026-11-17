@@ -36,6 +36,25 @@ export function makeRound(
   return notes
 }
 
+/** Another note in the range. Skips `current` when the range has more than one note. */
+export function pickMobileNote(
+  current: number,
+  random: () => number = Math.random,
+  low = RANGE_FLOOR,
+  high = RANGE_CEILING,
+): number {
+  const bottom = Math.min(low, high)
+  const top = Math.max(low, high)
+  if (top <= bottom) return bottom
+  const currentInside = current >= bottom && current <= top
+  const span = currentInside ? top - bottom : top - bottom + 1
+  let index = Math.floor(random() * span)
+  if (!Number.isFinite(index) || index < 0) index = 0
+  if (index >= span) index = span - 1
+  if (currentInside && index >= current - bottom) index += 1
+  return bottom + index
+}
+
 function pickNote(previous: number | null, random: () => number, low: number, high: number): number {
   const span = high - low + 1
   let midi = low + Math.floor(random() * span)

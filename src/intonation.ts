@@ -3,6 +3,7 @@ import { createSelfInput, stepSelfInput, type SelfInputState } from './intonatio
 import {
   judgePitch,
   makeRound,
+  pickMobileNote,
   NOTE_HIGH,
   NOTE_LOW,
   RANGE_CEILING,
@@ -45,20 +46,28 @@ const waveEl = document.querySelector<SVGSVGElement>('#tune-wave')!
 const titleEl = document.querySelector<HTMLElement>('#tune-title')!
 const ledeEl = document.querySelector<HTMLElement>('#tune-lede')!
 const roundEl = document.querySelector<HTMLElement>('#tune-round')!
+const mobileEl = document.querySelector<HTMLElement>('#tune-mobile')!
 const roundTab = document.querySelector<HTMLButtonElement>('#tune-tab-round')!
 const inputTab = document.querySelector<HTMLButtonElement>('#tune-tab-input')!
+const mobileTab = document.querySelector<HTMLButtonElement>('#tune-tab-mobile')!
+const mobileNoteSelect = document.querySelector<HTMLSelectElement>('#tune-mobile-note')!
+const mobileRandom = document.querySelector<HTMLButtonElement>('#tune-mobile-random')!
 const hintEl = document.querySelector<HTMLElement>('#tune-hint')!
 
 const LOW_KEY = 'pitch-reader-tune-low'
 const HIGH_KEY = 'pitch-reader-tune-high'
 const KIND_KEY = 'pitch-reader-tune-kind'
+const MOBILE_KEY = 'pitch-reader-tune-mobile'
 
 type Phase = 'idle' | 'playing' | 'listening' | 'passed'
-type Kind = 'round' | 'input'
+type Kind = 'round' | 'input' | 'mobile'
 type InputPhase = 'idle' | 'live'
+type MobilePhase = 'idle' | 'playing' | 'listening'
 
 let kind: Kind = storedKind()
 let inputPhase: InputPhase = 'idle'
+let mobileNote = storedMidi(MOBILE_KEY, 60)
+let mobilePhase: MobilePhase = 'idle'
 let selfInput: SelfInputState = createSelfInput()
 let liveMidi: number | null = null
 let phase: Phase = 'idle'
@@ -77,6 +86,10 @@ const listener = new PitchListener((detection) => {
     onInputFrame(detection.speaking, detection.result)
     return
   }
+  if (kind === 'mobile') {
+    onMobileFrame(detection.speaking, detection.result)
+    return
+  }
   if (phase !== 'listening' || detection.speaking) return
   if (detection.result.freq != null) rememberPitch(detection.result.freq)
   paintTrace()
@@ -88,6 +101,14 @@ const listener = new PitchListener((detection) => {
     if (inputPhase === 'live') {
       inputPhase = 'idle'
       selfInput = createSelfInput()
+      liveMidi = null
+      render()
+    }
+    return
+  }
+  if (kind === 'mobile') {
+    if (mobilePhase === 'listening') {
+      mobilePhase = 'idle'
       liveMidi = null
       render()
     }
@@ -110,6 +131,10 @@ startButton.addEventListener('click', () => {
     void onInputPrimary()
     return
   }
+  if (kind === 'mobile') {
+    void playMobile()
+    return
+  }
   if (phase === 'idle' || phase === 'passed') void begin()
   else if (phase === 'listening') finishRound()
 })
@@ -122,6 +147,21 @@ replayButton.addEventListener('click', () => {
 })
 roundTab.addEventListener('click', () => setKind('round'))
 inputTab.addEventListener('click', () => setKind('input'))
+mobileTab.addEventListener('click', () => setKind('mobile'))
+mobileNoteSelect.addEventListener('change', () => {
+  mobileNote = storedMidiValue(Number(mobileNoteSelect.value), mobileNote)
+  localStorage.setItem(MOBILE_KEY, String(mobileNote))
+  liveMidi = null
+  clearTrace()
+  render()
+})
+mobileRandom.addEventListener('click', () => {
+  mobileNote = pickMobileNote(mobileNote)
+  localStorage.setItem(MOBILE_KEY, String(mobileNote))
+  liveMidi = null
+  clearTrace()
+  render()
+})
 lowSelect.addEventListener('change', () => saveRange(true))
 highSelect.addEventListener('change', () => saveRange(false))
 
@@ -137,14 +177,23 @@ export function stopIntonation(): void {
   clearTrace()
   phase = 'idle'
   inputPhase = 'idle'
+  mobilePhase = 'idle'
   selfInput = createSelfInput()
   liveMidi = null
   render()
 }
 
+export function showIntonation(): void {
+  if (kind === 'mobile' && mobilePhase === 'idle') void listenMobile()
+}
+
 export function handleIntonationSpace(): void {
   if (kind === 'input') {
     void onInputPrimary()
+    return
+  }
+  if (kind === 'mobile') {
+    void playMobile()
     return
   }
   if (phase === 'playing') return
@@ -346,16 +395,22 @@ function setKind(next: Kind): void {
   clearTrace()
   phase = 'idle'
   inputPhase = 'idle'
+  mobilePhase = 'idle'
   selfInput = createSelfInput()
   liveMidi = null
   statusEl.textContent = ''
   render()
+  if (kind === 'mobile') void listenMobile()
 }
 
 function render(): void {
   applyKind()
   if (kind === 'input') {
     renderInput()
+    return
+  }
+  if (kind === 'mobile') {
+    renderMobile()
     return
   }
   const busy = phase === 'playing' || phase === 'listening'
@@ -433,6 +488,90 @@ function renderInput(): void {
   paintTrace()
 }
 
+function renderMobile(): void {
+  const playing = mobilePhase === 'playing'
+  startButton.disabled = playing
+  startButton.textContent = playing ? '正在播放…' : '播放'
+  mobileNoteSelect.disabled = playing
+  mobileRandom.disabled = playing
+  mobileNoteSelect.value = String(mobileNote)
+  if (playing) {
+    noteEl.textContent = noteName(mobileNote)
+    noteEl.className = 'note is-tuned'
+    detailEl.textContent = '先听'
+    extraEl.textContent = ''
+  } else if (mobilePhase === 'listening') {
+    paintSungReadout(mobileNote)
+  } else {
+    noteEl.textContent = noteName(mobileNote)
+    noteEl.className = 'note is-tuned'
+    detailEl.textContent = '点播放，再对着亮线唱'
+    extraEl.textContent = ''
+  }
+  if (mobilePhase !== 'listening') renderMeter(0)
+  root.dataset.state = mobilePhase
+  paintTrace()
+}
+
+function onMobileFrame(speaking: boolean, result: LockResult): void {
+  if (speaking || mobilePhase !== 'listening') return
+  if (result.freq == null) {
+    if (liveMidi == null) return
+    liveMidi = null
+    render()
+    return
+  }
+  liveMidi = result.midi
+  rememberPitch(result.freq)
+  render()
+}
+
+async function playMobile(): Promise<void> {
+  if (kind !== 'mobile' || mobilePhase === 'playing') return
+  const run = ++token
+  abort?.abort()
+  const controller = new AbortController()
+  abort = controller
+  mobilePhase = 'playing'
+  liveMidi = null
+  clearTrace()
+  haltMic()
+  statusEl.textContent = ''
+  render()
+  try {
+    await playMidiSequence([mobileNote], () => {}, controller.signal)
+  } catch (error) {
+    if (controller.signal.aborted || run !== token) return
+    statusEl.textContent = error instanceof Error ? error.message : '这个音没有播出来。'
+    await listenMobile(run)
+    return
+  }
+  if (controller.signal.aborted || run !== token) return
+  await listenMobile(run)
+}
+
+async function listenMobile(run = token): Promise<void> {
+  if (kind !== 'mobile' || run !== token) return
+  mobilePhase = 'listening'
+  render()
+  try {
+    const started = await listener.startMic()
+    if (run !== token || kind !== 'mobile') {
+      if (kind !== 'mobile') haltMic()
+      return
+    }
+    if (!started) {
+      mobilePhase = 'idle'
+      render()
+    }
+  } catch (error) {
+    if (run !== token || kind !== 'mobile') return
+    mobilePhase = 'idle'
+    statusEl.textContent = micErrorMessage(error)
+    render()
+  }
+}
+
 function paintSungReadout(target: number | null): void {
   if (target == null) {
     noteEl.textContent = '·'
@@ -456,16 +595,24 @@ function paintSungReadout(target: number | null): void {
 
 function applyKind(): void {
   const input = kind === 'input'
-  roundEl.hidden = input
-  roundTab.setAttribute('aria-pressed', input ? 'false' : 'true')
+  const mobile = kind === 'mobile'
+  roundEl.hidden = input || mobile
+  mobileEl.hidden = !mobile
+  replayButton.hidden = mobile
+  roundTab.setAttribute('aria-pressed', kind === 'round' ? 'true' : 'false')
   inputTab.setAttribute('aria-pressed', input ? 'true' : 'false')
-  titleEl.textContent = input ? '对着琴上的音唱' : '连准十个音'
-  ledeEl.textContent = input
-    ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
-    : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
-  hintEl.textContent = input
-    ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
-    : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
+  mobileTab.setAttribute('aria-pressed', mobile ? 'true' : 'false')
+  titleEl.textContent = mobile ? '外出练这个音' : input ? '对着琴上的音唱' : '连准十个音'
+  ledeEl.textContent = mobile
+    ? '选一个音，或点随机。点播放听一下，再对着亮线唱。准不准自己看线。'
+    : input
+      ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
+      : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
+  hintEl.textContent = mobile
+    ? '上面选好音，或点「随机」。点「播放」听当前这个音，然后自己唱。音高线贴上中间的亮线就是准。这里不判断，也不念出来。'
+    : input
+      ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
+      : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
 }
 
 function rememberPitch(freq: number): void {
@@ -484,6 +631,7 @@ function clearTrace(): void {
 }
 
 function currentTarget(): number | null {
+  if (kind === 'mobile') return mobileNote
   if (kind === 'input') {
     if (inputPhase !== 'live') return null
     return selfInput.target
@@ -493,7 +641,9 @@ function currentTarget(): number | null {
 }
 
 function storedKind(): Kind {
-  return localStorage.getItem(KIND_KEY) === 'input' ? 'input' : 'round'
+  const stored = localStorage.getItem(KIND_KEY)
+  if (stored === 'input' || stored === 'mobile') return stored
+  return 'round'
 }
 
 function paintTrace(): void {
@@ -615,7 +765,8 @@ function fillRangeSelects(): void {
     return option
   })
   lowSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
-  highSelect.replaceChildren(...options)
+  highSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
+  mobileNoteSelect.replaceChildren(...options)
   const [low, high] = chosenRange()
   lowSelect.value = String(low)
   highSelect.value = String(high)
@@ -644,7 +795,10 @@ function saveRange(lowChanged: boolean): void {
 function storedMidi(key: string, fallback: number): number {
   const raw = localStorage.getItem(key)
   if (raw == null || raw === '') return fallback
-  const value = Number(raw)
+  return storedMidiValue(Number(raw), fallback)
+}
+
+function storedMidiValue(value: number, fallback: number): number {
   if (!Number.isInteger(value)) return fallback
   return Math.min(RANGE_CEILING, Math.max(RANGE_FLOOR, value))
 }

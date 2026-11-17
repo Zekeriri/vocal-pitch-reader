@@ -190,6 +190,7 @@ input {
 .range-pick .ghost {
   align-self: end;
   flex: 0 0 auto;
+  min-height: 2.75rem;
   padding: 0 1.15rem;
 }
 
@@ -593,5 +594,27 @@ input:focus-visible {
 
   .app > .modes .mode {
     padding: 0.35rem 0.6rem;
+  }
+
+  #intonation .exercise-switch {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #intonation .exercise-switch .mode {
+    padding-inline: 0.35rem;
+  }
+
+  #intonation.stage {
+    gap: 0.85rem;
+    padding-top: 0.85rem;
+  }
+
+  #intonation .tune-wave {
+    height: 7rem;
+  }
+
+  #intonation .ph-readout .note {
+    font-size: clamp(3.2rem, 14vw, 4.5rem);
   }
 }

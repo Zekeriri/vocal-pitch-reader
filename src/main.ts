@@ -1,5 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { handleIntonationSpace, stopIntonation } from './intonation.ts'
+import { handleIntonationSpace, showIntonation, stopIntonation } from './intonation.ts'
 import { handlePharyngealSpace, stopPharyngeal } from './pharyngeal.ts'
 import { handleTiltSpace, stopTilt } from './tilt.ts'
 import { handleVibratoSpace, stopVibrato } from './vibrato.ts'
@@ -85,7 +85,8 @@ for (const button of modeButtons) {
     silenceSpeech()
     if (mode !== 'tuner') listener.stop()
     if (mode !== 'pharyngeal') stopPharyngeal()
-    if (mode !== 'intonation') stopIntonation()
+    if (mode === 'intonation') showIntonation()
+    else stopIntonation()
     if (mode !== 'vibrato') stopVibrato()
     if (mode !== 'tilt') stopTilt()
     if (mode !== 'settings') stopSettingsPreview()
