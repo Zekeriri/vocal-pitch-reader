@@ -21,6 +21,7 @@ import { formatNote, freqToMidi, midiToName, type LockResult } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
 import { readTuneRange, subscribeTuneRange } from './tune-range.ts'
+import { nextWideSide, wideFrame, type WideSide } from './wide-tilt.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -66,6 +67,7 @@ let mobileNote = storedMidi(MOBILE_KEY, 60)
 let mobilePhase: MobilePhase = 'idle'
 let wideOpen = false
 let wideFullscreen = false
+let wideSide: WideSide = 'left'
 let selfInput: SelfInputState = createSelfInput()
 let liveMidi: number | null = null
 let phase: Phase = 'idle'
@@ -155,6 +157,9 @@ wideButton.addEventListener('click', () => {
 })
 wideExit.addEventListener('click', () => {
   leaveWide()
+})
+window.addEventListener('resize', () => {
+  if (wideOpen) layoutWide()
 })
 document.addEventListener('fullscreenchange', () => {
   if (wideOpen && wideFullscreen && document.fullscreenElement == null) leaveWide()
@@ -521,23 +526,74 @@ function renderMobile(): void {
 async function enterWide(): Promise<void> {
   if (kind !== 'mobile' || wideOpen) return
   wideOpen = true
+  wideSide = 'left'
   document.body.classList.add('is-tune-wide')
+  layoutWide()
+  window.addEventListener('deviceorientation', onWideTilt)
+  const orientationEvent = DeviceOrientationEvent as typeof DeviceOrientationEvent & {
+    requestPermission?: () => Promise<string>
+  }
+  const permit = orientationEvent.requestPermission?.()
   const fullscreen = document.documentElement.requestFullscreen?.()
+  try {
+    await permit
+  } catch {
+    // Motion permission was declined. The portrait screen still uses the landscape layout.
+  }
   try {
     await fullscreen
   } catch {
     // The page still fills the window when the browser will not go fullscreen.
   }
   wideFullscreen = document.fullscreenElement != null
+  layoutWide()
 }
 
 function leaveWide(renderAfter = true): void {
   if (!wideOpen && !document.body.classList.contains('is-tune-wide')) return
   wideOpen = false
   wideFullscreen = false
+  wideSide = 'left'
   document.body.classList.remove('is-tune-wide')
+  window.removeEventListener('deviceorientation', onWideTilt)
+  clearWideFrame()
   if (document.fullscreenElement != null) void document.exitFullscreen?.()
   if (renderAfter) render()
+}
+
+function onWideTilt(event: DeviceOrientationEvent): void {
+  const side = nextWideSide(event.gamma, wideSide)
+  if (side === wideSide) return
+  wideSide = side
+  layoutWide()
+}
+
+function layoutWide(): void {
+  if (!wideOpen) return
+  const frame = wideFrame(wideSide, { width: window.innerWidth, height: window.innerHeight })
+  if (frame == null) {
+    clearWideFrame()
+    return
+  }
+  root.style.width = `${frame.width}px`
+  root.style.height = `${frame.height}px`
+  root.style.top = `${frame.top}px`
+  root.style.left = `${frame.left}px`
+  root.style.right = 'auto'
+  root.style.bottom = 'auto'
+  root.style.transformOrigin = 'top left'
+  root.style.transform = frame.transform
+}
+
+function clearWideFrame(): void {
+  root.style.width = ''
+  root.style.height = ''
+  root.style.top = ''
+  root.style.left = ''
+  root.style.right = ''
+  root.style.bottom = ''
+  root.style.transform = ''
+  root.style.transformOrigin = ''
 }
 
 function randomizeMobile(): void {
@@ -646,7 +702,7 @@ function applyKind(): void {
       ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
       : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = mobile
-    ? '波形下面是「播放」和「随机」。当前音在按钮下面。点「全屏」后只留波形、播放和随机，竖屏和横屏都会铺满。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
+    ? '波形下面是「播放」和「随机」。当前音在按钮下面。点「全屏」后只留波形、播放和随机。系统锁在竖屏时，也会固定用横屏的排法。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
     : input
       ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
       : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'

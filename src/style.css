@@ -204,60 +204,30 @@ body.is-tune-wide #intonation .tune-wave {
   min-height: 0;
 }
 
+body.is-tune-wide #intonation {
+  flex-direction: row;
+  align-items: stretch;
+}
+
 body.is-tune-wide #intonation .actions {
   order: 2;
-  flex: 0 0 auto;
-  flex-direction: row;
+  flex: 0 0 9.5rem;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 body.is-tune-wide #intonation .actions .primary,
 body.is-tune-wide #intonation .actions .ghost {
   flex: 1 1 0;
-  min-height: 3.25rem;
-}
-
-@media (orientation: portrait) {
-  body.is-tune-wide #intonation .actions .primary,
-  body.is-tune-wide #intonation .actions .ghost {
-    min-height: 3.6rem;
-  }
-}
-
-@media (orientation: landscape) {
-  body.is-tune-wide #intonation {
-    flex-direction: row;
-    align-items: stretch;
-    gap: 0.75rem;
-    padding-top: max(0.55rem, env(safe-area-inset-top));
-    padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
-  }
-
-  body.is-tune-wide #intonation .tune-wave {
-    order: 1;
-    flex: 1 1 auto;
-    height: auto;
-    min-height: 0;
-  }
-
-  body.is-tune-wide #intonation .actions {
-    order: 2;
-    flex: 0 0 9.5rem;
-    flex-direction: column;
-    justify-content: flex-end;
-  }
-
-  body.is-tune-wide #tune-wide-exit {
-    top: max(0.4rem, env(safe-area-inset-top));
-    right: auto;
-    left: max(0.45rem, env(safe-area-inset-left));
-  }
+  min-height: 3rem;
 }
 
 body.is-tune-wide #tune-wide-exit {
   display: inline-flex;
   position: absolute;
-  top: 0.45rem;
-  right: 0.55rem;
+  top: max(0.4rem, env(safe-area-inset-top));
+  right: auto;
+  left: max(0.45rem, env(safe-area-inset-left));
   z-index: 2;
   min-height: 2.1rem;
   padding: 0 0.75rem;
