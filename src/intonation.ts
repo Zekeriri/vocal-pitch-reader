@@ -20,7 +20,7 @@ import {
 import { formatNote, freqToMidi, midiToName, type LockResult } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
-import { readTuneRange, subscribeTuneRange, updateTuneRange } from './tune-range.ts'
+import { readTuneRange, subscribeTuneRange } from './tune-range.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -38,8 +38,6 @@ const levelEl = document.querySelector<HTMLElement>('#tune-level')!
 const gateMarkEl = document.querySelector<HTMLElement>('#tune-gate')!
 const startButton = document.querySelector<HTMLButtonElement>('#tune-start')!
 const replayButton = document.querySelector<HTMLButtonElement>('#tune-replay')!
-const lowSelect = document.querySelector<HTMLSelectElement>('#tune-low')!
-const highSelect = document.querySelector<HTMLSelectElement>('#tune-high')!
 const statusEl = document.querySelector<HTMLElement>('#tune-status')!
 const waveEl = document.querySelector<SVGSVGElement>('#tune-wave')!
 const titleEl = document.querySelector<HTMLElement>('#tune-title')!
@@ -155,14 +153,9 @@ mobileNoteSelect.addEventListener('change', () => {
   clearTrace()
   render()
 })
-lowSelect.addEventListener('change', () => saveRange('low'))
-highSelect.addEventListener('change', () => saveRange('high'))
-
-fillRangeSelects()
+fillMobileNotes()
 render()
-subscribeTuneRange((range) => {
-  lowSelect.value = String(range.low)
-  highSelect.value = String(range.high)
+subscribeTuneRange(() => {
   if (kind === 'round' && (phase === 'idle' || phase === 'passed')) render()
 })
 
@@ -414,8 +407,6 @@ function render(): void {
   const busy = phase === 'playing' || phase === 'listening'
   startButton.disabled = phase === 'playing'
   replayButton.disabled = !busy
-  lowSelect.disabled = busy
-  highSelect.disabled = busy
   startButton.textContent =
     phase === 'playing' ? '正在播放…' : phase === 'listening' ? '结束' : phase === 'passed' ? '再来一轮' : '开始'
   replayButton.textContent = '再听一次'
@@ -605,6 +596,7 @@ function paintSungReadout(target: number | null): void {
 function applyKind(): void {
   const input = kind === 'input'
   const mobile = kind === 'mobile'
+  root.dataset.kind = kind
   roundEl.hidden = input || mobile
   mobileEl.hidden = !mobile
   roundTab.setAttribute('aria-pressed', kind === 'round' ? 'true' : 'false')
@@ -612,12 +604,12 @@ function applyKind(): void {
   mobileTab.setAttribute('aria-pressed', mobile ? 'true' : 'false')
   titleEl.textContent = mobile ? '外出练这个音' : input ? '对着琴上的音唱' : '连准十个音'
   ledeEl.textContent = mobile
-    ? '选一个音，或点下面的「随机」。点「播放」听一下，再对着亮线唱。准不准自己看线。'
+    ? '先看波形。点「播放」听这个音，或点「随机」换一个。再对着亮线唱。准不准自己看线。'
     : input
       ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
       : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = mobile
-    ? '上面选当前音。点「播放」听这个音，然后自己唱。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
+    ? '波形下面是「播放」和「随机」。当前音、以及「对着亮线唱」，在按钮下面。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
     : input
       ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
       : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
@@ -764,7 +756,7 @@ function paintDots(): void {
   )
 }
 
-function fillRangeSelects(): void {
+function fillMobileNotes(): void {
   const options = Array.from({ length: RANGE_CEILING - RANGE_FLOOR + 1 }, (_, index) => {
     const midi = RANGE_FLOOR + index
     const option = document.createElement('option')
@@ -772,17 +764,7 @@ function fillRangeSelects(): void {
     option.textContent = noteName(midi)
     return option
   })
-  lowSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
-  highSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
   mobileNoteSelect.replaceChildren(...options)
-  const range = readTuneRange()
-  lowSelect.value = String(range.low)
-  highSelect.value = String(range.high)
-}
-
-function saveRange(edited: 'low' | 'high'): void {
-  updateTuneRange(Number(lowSelect.value), Number(highSelect.value), edited)
-  if (phase === 'idle' || phase === 'passed') render()
 }
 
 function storedMidi(key: string, fallback: number): number {

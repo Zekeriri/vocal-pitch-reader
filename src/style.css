@@ -113,6 +113,50 @@ input {
   gap: 1.35rem;
 }
 
+#intonation[data-kind='mobile'] > .tune-wave {
+  order: 1;
+}
+
+#intonation[data-kind='mobile'] > .actions {
+  order: 2;
+}
+
+#intonation[data-kind='mobile'] > #tune-mobile {
+  order: 3;
+}
+
+#intonation[data-kind='mobile'] > .readout {
+  order: 4;
+}
+
+#intonation[data-kind='mobile'] > .meter {
+  order: 5;
+}
+
+#intonation[data-kind='mobile'] > .hint {
+  order: 6;
+}
+
+#intonation[data-kind='mobile'] > .status {
+  order: 7;
+}
+
+@media (max-height: 520px) {
+  #intonation[data-kind='mobile'] {
+    gap: 0.45rem;
+    padding-top: 0.35rem;
+    padding-bottom: 0.75rem;
+  }
+
+  #intonation[data-kind='mobile'] .lede {
+    display: none;
+  }
+
+  #intonation[data-kind='mobile'] .tune-wave {
+    height: 6.25rem;
+  }
+}
+
 .tune-wave {
   width: 100%;
   height: 8.5rem;
