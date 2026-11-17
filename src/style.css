@@ -157,6 +157,71 @@ input {
   }
 }
 
+#tune-wide-exit {
+  display: none;
+}
+
+body.is-tune-wide {
+  overflow: hidden;
+}
+
+body.is-tune-wide .app > .modes {
+  display: none !important;
+}
+
+body.is-tune-wide #intonation {
+  position: fixed;
+  z-index: 5;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0.7rem 0.75rem 0.75rem;
+  gap: 0.65rem;
+  background: var(--bg);
+}
+
+body.is-tune-wide #intonation > header,
+body.is-tune-wide #intonation > .exercise-switch,
+body.is-tune-wide #intonation > #tune-mobile,
+body.is-tune-wide #intonation > #tune-round,
+body.is-tune-wide #intonation > .readout,
+body.is-tune-wide #intonation > .meter,
+body.is-tune-wide #intonation > .hint,
+body.is-tune-wide #intonation > .status {
+  display: none !important;
+}
+
+body.is-tune-wide #intonation .tune-wave {
+  order: 1;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 8rem;
+}
+
+body.is-tune-wide #intonation .actions {
+  order: 2;
+  flex: 0 0 auto;
+  flex-direction: row;
+}
+
+body.is-tune-wide #intonation .actions .primary,
+body.is-tune-wide #intonation .actions .ghost {
+  flex: 1 1 0;
+  min-height: 3rem;
+}
+
+body.is-tune-wide #tune-wide-exit {
+  display: inline-flex;
+  position: absolute;
+  top: 0.45rem;
+  right: 0.55rem;
+  z-index: 2;
+  min-height: 2.1rem;
+  padding: 0 0.75rem;
+  align-items: center;
+}
+
 .tune-wave {
   width: 100%;
   height: 8.5rem;

@@ -21,6 +21,7 @@ import { formatNote, freqToMidi, midiToName, type LockResult } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
 import { readTuneRange, subscribeTuneRange } from './tune-range.ts'
+import { nextWideTilt, wideFrame, type WideTilt } from './wide-tilt.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -48,6 +49,8 @@ const roundTab = document.querySelector<HTMLButtonElement>('#tune-tab-round')!
 const inputTab = document.querySelector<HTMLButtonElement>('#tune-tab-input')!
 const mobileTab = document.querySelector<HTMLButtonElement>('#tune-tab-mobile')!
 const mobileNoteSelect = document.querySelector<HTMLSelectElement>('#tune-mobile-note')!
+const wideButton = document.querySelector<HTMLButtonElement>('#tune-wide')!
+const wideExit = document.querySelector<HTMLButtonElement>('#tune-wide-exit')!
 const hintEl = document.querySelector<HTMLElement>('#tune-hint')!
 
 const KIND_KEY = 'pitch-reader-tune-kind'
@@ -62,6 +65,9 @@ let kind: Kind = storedKind()
 let inputPhase: InputPhase = 'idle'
 let mobileNote = storedMidi(MOBILE_KEY, 60)
 let mobilePhase: MobilePhase = 'idle'
+let wideOpen = false
+let wideTilt: WideTilt = 'portrait'
+let wideFullscreen = false
 let selfInput: SelfInputState = createSelfInput()
 let liveMidi: number | null = null
 let phase: Phase = 'idle'
@@ -146,6 +152,18 @@ replayButton.addEventListener('click', () => {
 roundTab.addEventListener('click', () => setKind('round'))
 inputTab.addEventListener('click', () => setKind('input'))
 mobileTab.addEventListener('click', () => setKind('mobile'))
+wideButton.addEventListener('click', () => {
+  void enterWide()
+})
+wideExit.addEventListener('click', () => {
+  leaveWide()
+})
+window.addEventListener('resize', () => {
+  if (wideOpen) layoutWide()
+})
+document.addEventListener('fullscreenchange', () => {
+  if (wideOpen && wideFullscreen && document.fullscreenElement == null) leaveWide()
+})
 mobileNoteSelect.addEventListener('change', () => {
   mobileNote = storedMidiValue(Number(mobileNoteSelect.value), mobileNote)
   localStorage.setItem(MOBILE_KEY, String(mobileNote))
@@ -169,6 +187,7 @@ export function stopIntonation(): void {
   phase = 'idle'
   inputPhase = 'idle'
   mobilePhase = 'idle'
+  leaveWide(false)
   selfInput = createSelfInput()
   liveMidi = null
   render()
@@ -387,6 +406,7 @@ function setKind(next: Kind): void {
   phase = 'idle'
   inputPhase = 'idle'
   mobilePhase = 'idle'
+  leaveWide(false)
   selfInput = createSelfInput()
   liveMidi = null
   statusEl.textContent = ''
@@ -503,6 +523,90 @@ function renderMobile(): void {
   paintTrace()
 }
 
+async function enterWide(): Promise<void> {
+  if (kind !== 'mobile' || wideOpen) return
+  wideOpen = true
+  wideTilt = 'portrait'
+  document.body.classList.add('is-tune-wide')
+  layoutWide()
+  window.addEventListener('deviceorientation', onWideTilt)
+  const orientationEvent = DeviceOrientationEvent as typeof DeviceOrientationEvent & {
+    requestPermission?: () => Promise<string>
+  }
+  const permit = orientationEvent.requestPermission?.()
+  const fullscreen = document.documentElement.requestFullscreen?.()
+  try {
+    if ((await permit) === 'granted' || permit == null) {
+      window.removeEventListener('deviceorientation', onWideTilt)
+      window.addEventListener('deviceorientation', onWideTilt)
+    }
+  } catch {
+    // Motion permission was declined. The system orientation is used instead.
+  }
+  try {
+    await fullscreen
+    wideFullscreen = document.fullscreenElement != null
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (kind: string) => Promise<void>
+    }
+    await orientation.lock?.('landscape')
+  } catch {
+    wideFullscreen = document.fullscreenElement != null
+  }
+  layoutWide()
+}
+
+function leaveWide(renderAfter = true): void {
+  if (!wideOpen && !document.body.classList.contains('is-tune-wide')) return
+  wideOpen = false
+  wideTilt = 'portrait'
+  wideFullscreen = false
+  document.body.classList.remove('is-tune-wide')
+  window.removeEventListener('deviceorientation', onWideTilt)
+  root.style.width = ''
+  root.style.height = ''
+  root.style.top = ''
+  root.style.left = ''
+  root.style.right = ''
+  root.style.bottom = ''
+  root.style.transform = ''
+  root.style.transformOrigin = ''
+  screen.orientation?.unlock?.()
+  if (document.fullscreenElement != null) void document.exitFullscreen?.()
+  if (renderAfter) render()
+}
+
+function onWideTilt(event: DeviceOrientationEvent): void {
+  const tilt = nextWideTilt(event.gamma, wideTilt)
+  if (tilt === wideTilt) return
+  wideTilt = tilt
+  layoutWide()
+}
+
+function layoutWide(): void {
+  if (!wideOpen) return
+  const frame = wideFrame(wideTilt, { width: window.innerWidth, height: window.innerHeight })
+  if (frame == null) {
+    root.style.width = ''
+    root.style.height = ''
+    root.style.top = ''
+    root.style.left = ''
+    root.style.right = ''
+    root.style.bottom = ''
+    root.style.transform = ''
+    root.style.transformOrigin = ''
+    return
+  }
+  root.style.width = `${frame.width}px`
+  root.style.height = `${frame.height}px`
+  root.style.top = `${frame.top}px`
+  root.style.left = `${frame.left}px`
+  root.style.right = 'auto'
+  root.style.bottom = 'auto'
+  root.style.transformOrigin = 'top left'
+  root.style.transform = frame.transform
+}
+
 function randomizeMobile(): void {
   if (kind !== 'mobile' || mobilePhase === 'playing') return
   const range = readTuneRange()
@@ -609,7 +713,7 @@ function applyKind(): void {
       ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
       : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = mobile
-    ? '波形下面是「播放」和「随机」。当前音、以及「对着亮线唱」，在按钮下面。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
+    ? '波形下面是「播放」和「随机」。当前音在按钮下面。点「横屏」后只留波形、播放和随机；手机锁了转向，横过来也会跟着转。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
     : input
       ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
       : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
