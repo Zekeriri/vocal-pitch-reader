@@ -16,8 +16,8 @@ export type SelfInputState = {
   pendingMidi: number | null
   pendingSince: number | null
   matchSince: number | null
-  /** This continuous in-tune hold has already been spoken. */
-  matchHeld: boolean
+  /** The singer held the pitch in tune. Spoken only after this note ends. */
+  phraseMatched: boolean
   phraseVerdict: Verdict | null
   voiced: boolean
 }
@@ -34,7 +34,7 @@ export type SelfInputStep = {
   locked: number | null
   passed: boolean
   armed: boolean
-  /** Spoken after a miss ends, or once a matched note has been held long enough. */
+  /** Spoken once, after the sung note has ended. */
   speak: Verdict | null
   /** On-screen verdict while the sung note is still going. Never spoken. */
   live: Verdict | null
@@ -50,7 +50,7 @@ export function createSelfInput(): SelfInputState {
     pendingMidi: null,
     pendingSince: null,
     matchSince: null,
-    matchHeld: false,
+    phraseMatched: false,
     phraseVerdict: null,
     voiced: false,
   }
@@ -72,7 +72,6 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       next.matchSince = null
-      next.matchHeld = false
     }
     if (quiet >= INPUT_GAP_MS) {
       const waiting = next.waitGap
@@ -81,9 +80,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
         next.ignoreMidi = null
         armed = true
       } else if (next.phase === 'sing' && next.voiced) {
-        if (next.phraseVerdict === 'low' || next.phraseVerdict === 'high') speak = next.phraseVerdict
-        next.phraseVerdict = null
-        next.voiced = false
+        speak = finishSungPhrase(next)
       }
     }
     return { state: next, locked, passed, armed, speak, live }
@@ -95,7 +92,6 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       next.matchSince = null
-      next.matchHeld = false
     }
     if (quiet >= INPUT_GAP_MS) {
       if (next.waitGap) {
@@ -103,9 +99,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
         next.ignoreMidi = null
         armed = true
       } else if (next.phase === 'sing' && next.voiced) {
-        if (next.phraseVerdict === 'low' || next.phraseVerdict === 'high') speak = next.phraseVerdict
-        next.phraseVerdict = null
-        next.voiced = false
+        speak = finishSungPhrase(next)
       }
     }
   }
@@ -135,7 +129,7 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
       next.pendingMidi = null
       next.pendingSince = null
       next.matchSince = null
-      next.matchHeld = false
+      next.phraseMatched = false
       next.phraseVerdict = null
       next.voiced = false
       locked = frame.midi
@@ -146,7 +140,6 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
   next.voiced = true
   if (!frame.stable || next.target == null) {
     next.matchSince = null
-    next.matchHeld = false
     return { state: next, locked, passed, armed, speak, live }
   }
   const verdict = judgePitch(frame.freq, next.target)
@@ -154,13 +147,21 @@ export function stepSelfInput(state: SelfInputState, frame: InputFrame, noteMs: 
   live = verdict
   if (verdict === 'match') {
     if (next.matchSince == null) next.matchSince = frame.time
-    if (!next.matchHeld && frame.time - next.matchSince >= noteHold) {
-      next.matchHeld = true
-      speak = 'match'
-    }
+    if (frame.time - next.matchSince >= noteHold) next.phraseMatched = true
   } else {
     next.matchSince = null
-    next.matchHeld = false
   }
   return { state: next, locked, passed, armed, speak, live }
+}
+
+function finishSungPhrase(state: SelfInputState): Verdict | null {
+  const speak = state.phraseMatched
+    ? 'match'
+    : state.phraseVerdict === 'low' || state.phraseVerdict === 'high'
+      ? state.phraseVerdict
+      : null
+  state.phraseVerdict = null
+  state.phraseMatched = false
+  state.voiced = false
+  return speak
 }
