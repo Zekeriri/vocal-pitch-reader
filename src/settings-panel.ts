@@ -1,6 +1,9 @@
+import { RANGE_CEILING, RANGE_FLOOR } from './intonation-round.ts'
+import { formatNote, midiToName } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { silenceSpeech } from './speak.ts'
 import { subscribeSettings, updateSettings, type PracticeSettings } from './settings.ts'
+import { subscribeTuneRange, updateTuneRange, type TuneRange } from './tune-range.ts'
 
 const holdInput = document.querySelector<HTMLInputElement>('#hold')!
 const holdValue = document.querySelector<HTMLElement>('#hold-value')!
@@ -13,6 +16,8 @@ const volumeValue = document.querySelector<HTMLElement>('#piano-volume-value')!
 const voiceInput = document.querySelector<HTMLInputElement>('#voice-prompts')!
 const previewButton = document.querySelector<HTMLButtonElement>('#piano-preview')!
 const statusEl = document.querySelector<HTMLElement>('#settings-status')!
+const rangeLow = document.querySelector<HTMLSelectElement>('#tune-range-low')!
+const rangeHigh = document.querySelector<HTMLSelectElement>('#tune-range-high')!
 
 let preview: AbortController | null = null
 
@@ -41,7 +46,17 @@ previewButton.addEventListener('click', () => {
   void previewPiano()
 })
 
+rangeLow.addEventListener('change', () => {
+  updateTuneRange(Number(rangeLow.value), Number(rangeHigh.value), 'low')
+})
+
+rangeHigh.addEventListener('change', () => {
+  updateTuneRange(Number(rangeLow.value), Number(rangeHigh.value), 'high')
+})
+
+fillTuneRange()
 subscribeSettings(paint)
+subscribeTuneRange(paintRange)
 
 export function stopSettingsPreview(): void {
   preview?.abort()
@@ -70,6 +85,23 @@ async function previewPiano(): Promise<void> {
       previewButton.textContent = '试听钢琴'
     }
   }
+}
+
+function fillTuneRange(): void {
+  const options = Array.from({ length: RANGE_CEILING - RANGE_FLOOR + 1 }, (_, index) => {
+    const midi = RANGE_FLOOR + index
+    const option = document.createElement('option')
+    option.value = String(midi)
+    option.textContent = formatNote(midiToName(midi))
+    return option
+  })
+  rangeLow.replaceChildren(...options.map((option) => option.cloneNode(true)))
+  rangeHigh.replaceChildren(...options)
+}
+
+function paintRange(range: TuneRange): void {
+  rangeLow.value = String(range.low)
+  rangeHigh.value = String(range.high)
 }
 
 function paint(settings: PracticeSettings): void {

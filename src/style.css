@@ -320,6 +320,11 @@ input {
   accent-color: var(--amber);
 }
 
+.settings-block .range-pick label {
+  display: flex;
+  grid-template-columns: none;
+}
+
 .settings-block label.check {
   display: flex;
   gap: 0.75rem;
@@ -608,6 +613,15 @@ input:focus-visible {
   #intonation.stage {
     gap: 0.85rem;
     padding-top: 0.85rem;
+  }
+
+  #intonation .actions {
+    flex-direction: row;
+  }
+
+  #intonation .actions .primary,
+  #intonation .actions .ghost {
+    flex: 1 1 0;
   }
 
   #intonation .tune-wave {

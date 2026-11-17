@@ -4,8 +4,6 @@ import {
   judgePitch,
   makeRound,
   pickMobileNote,
-  NOTE_HIGH,
-  NOTE_LOW,
   RANGE_CEILING,
   RANGE_FLOOR,
   ROUND_LENGTH,
@@ -22,6 +20,7 @@ import {
 import { formatNote, freqToMidi, midiToName, type LockResult } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
 import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
+import { readTuneRange, subscribeTuneRange, updateTuneRange } from './tune-range.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -51,11 +50,8 @@ const roundTab = document.querySelector<HTMLButtonElement>('#tune-tab-round')!
 const inputTab = document.querySelector<HTMLButtonElement>('#tune-tab-input')!
 const mobileTab = document.querySelector<HTMLButtonElement>('#tune-tab-mobile')!
 const mobileNoteSelect = document.querySelector<HTMLSelectElement>('#tune-mobile-note')!
-const mobileRandom = document.querySelector<HTMLButtonElement>('#tune-mobile-random')!
 const hintEl = document.querySelector<HTMLElement>('#tune-hint')!
 
-const LOW_KEY = 'pitch-reader-tune-low'
-const HIGH_KEY = 'pitch-reader-tune-high'
 const KIND_KEY = 'pitch-reader-tune-kind'
 const MOBILE_KEY = 'pitch-reader-tune-mobile'
 
@@ -139,6 +135,10 @@ startButton.addEventListener('click', () => {
   else if (phase === 'listening') finishRound()
 })
 replayButton.addEventListener('click', () => {
+  if (kind === 'mobile') {
+    randomizeMobile()
+    return
+  }
   if (kind === 'input') {
     restartInput()
     return
@@ -155,18 +155,16 @@ mobileNoteSelect.addEventListener('change', () => {
   clearTrace()
   render()
 })
-mobileRandom.addEventListener('click', () => {
-  mobileNote = pickMobileNote(mobileNote)
-  localStorage.setItem(MOBILE_KEY, String(mobileNote))
-  liveMidi = null
-  clearTrace()
-  render()
-})
-lowSelect.addEventListener('change', () => saveRange(true))
-highSelect.addEventListener('change', () => saveRange(false))
+lowSelect.addEventListener('change', () => saveRange('low'))
+highSelect.addEventListener('change', () => saveRange('high'))
 
 fillRangeSelects()
 render()
+subscribeTuneRange((range) => {
+  lowSelect.value = String(range.low)
+  highSelect.value = String(range.high)
+  if (kind === 'round' && (phase === 'idle' || phase === 'passed')) render()
+})
 
 export function stopIntonation(): void {
   token += 1
@@ -202,8 +200,8 @@ export function handleIntonationSpace(): void {
 }
 
 async function begin(): Promise<void> {
-  const [low, high] = chosenRange()
-  targets = makeRound(ROUND_LENGTH, Math.random, low, high)
+  const range = readTuneRange()
+  targets = makeRound(ROUND_LENGTH, Math.random, range.low, range.high)
   index = 0
   statusEl.textContent = ''
   clearTrace()
@@ -212,8 +210,8 @@ async function begin(): Promise<void> {
 
 async function present(): Promise<void> {
   if (targets.length !== ROUND_LENGTH) {
-    const [low, high] = chosenRange()
-    targets = makeRound(ROUND_LENGTH, Math.random, low, high)
+    const range = readTuneRange()
+    targets = makeRound(ROUND_LENGTH, Math.random, range.low, range.high)
   }
   const run = ++token
   abort?.abort()
@@ -425,8 +423,8 @@ function render(): void {
   if (phase === 'idle') {
     noteEl.textContent = '·'
     noteEl.className = 'note is-empty'
-    const [low, high] = chosenRange()
-    detailEl.textContent = `从 ${noteName(low)} 到 ${noteName(high)}，点开始`
+    const range = readTuneRange()
+    detailEl.textContent = `从 ${noteName(range.low)} 到 ${noteName(range.high)}，点开始`
     extraEl.textContent = ''
     renderMeter(0)
   } else if (phase === 'playing') {
@@ -492,8 +490,9 @@ function renderMobile(): void {
   const playing = mobilePhase === 'playing'
   startButton.disabled = playing
   startButton.textContent = playing ? '正在播放…' : '播放'
+  replayButton.disabled = playing
+  replayButton.textContent = '随机'
   mobileNoteSelect.disabled = playing
-  mobileRandom.disabled = playing
   mobileNoteSelect.value = String(mobileNote)
   if (playing) {
     noteEl.textContent = noteName(mobileNote)
@@ -511,6 +510,16 @@ function renderMobile(): void {
   if (mobilePhase !== 'listening') renderMeter(0)
   root.dataset.state = mobilePhase
   paintTrace()
+}
+
+function randomizeMobile(): void {
+  if (kind !== 'mobile' || mobilePhase === 'playing') return
+  const range = readTuneRange()
+  mobileNote = pickMobileNote(mobileNote, Math.random, range.low, range.high)
+  localStorage.setItem(MOBILE_KEY, String(mobileNote))
+  liveMidi = null
+  clearTrace()
+  render()
 }
 
 function onMobileFrame(speaking: boolean, result: LockResult): void {
@@ -598,18 +607,17 @@ function applyKind(): void {
   const mobile = kind === 'mobile'
   roundEl.hidden = input || mobile
   mobileEl.hidden = !mobile
-  replayButton.hidden = mobile
   roundTab.setAttribute('aria-pressed', kind === 'round' ? 'true' : 'false')
   inputTab.setAttribute('aria-pressed', input ? 'true' : 'false')
   mobileTab.setAttribute('aria-pressed', mobile ? 'true' : 'false')
   titleEl.textContent = mobile ? '外出练这个音' : input ? '对着琴上的音唱' : '连准十个音'
   ledeEl.textContent = mobile
-    ? '选一个音，或点随机。点播放听一下，再对着亮线唱。准不准自己看线。'
+    ? '选一个音，或点下面的「随机」。点「播放」听一下，再对着亮线唱。准不准自己看线。'
     : input
       ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
       : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = mobile
-    ? '上面选好音，或点「随机」。点「播放」听当前这个音，然后自己唱。音高线贴上中间的亮线就是准。这里不判断，也不念出来。'
+    ? '上面选当前音。点「播放」听这个音，然后自己唱。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
     : input
       ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
       : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
@@ -767,28 +775,13 @@ function fillRangeSelects(): void {
   lowSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
   highSelect.replaceChildren(...options.map((option) => option.cloneNode(true)))
   mobileNoteSelect.replaceChildren(...options)
-  const [low, high] = chosenRange()
-  lowSelect.value = String(low)
-  highSelect.value = String(high)
+  const range = readTuneRange()
+  lowSelect.value = String(range.low)
+  highSelect.value = String(range.high)
 }
 
-function chosenRange(): [number, number] {
-  const low = storedMidi(LOW_KEY, NOTE_LOW)
-  const high = storedMidi(HIGH_KEY, NOTE_HIGH)
-  return low <= high ? [low, high] : [high, low]
-}
-
-function saveRange(lowChanged: boolean): void {
-  let low = Number(lowSelect.value)
-  let high = Number(highSelect.value)
-  if (low > high) {
-    if (lowChanged) high = low
-    else low = high
-    lowSelect.value = String(low)
-    highSelect.value = String(high)
-  }
-  localStorage.setItem(LOW_KEY, String(low))
-  localStorage.setItem(HIGH_KEY, String(high))
+function saveRange(edited: 'low' | 'high'): void {
+  updateTuneRange(Number(lowSelect.value), Number(highSelect.value), edited)
   if (phase === 'idle' || phase === 'passed') render()
 }
 

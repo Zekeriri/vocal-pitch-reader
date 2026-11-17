@@ -112,7 +112,6 @@
             当前音
             <select id="tune-mobile-note"></select>
           </label>
-          <button id="tune-mobile-random" class="ghost" type="button">随机</button>
         </div>
       </div>
       <div id="tune-round">
@@ -250,7 +249,7 @@
       <header>
         <p class="eyebrow">设置</p>
         <h1>练习设置</h1>
-        <p class="lede">弹出的音都是同一架钢琴。音量、每个音响多久、稳住时间和响度门限，在这里一起调。</p>
+        <p class="lede">弹出的音都是同一架钢琴。音量、每个音响多久、稳住时间、响度门限，还有音准训练的音域，在这里一起调。</p>
       </header>
 
       <section class="settings-block">
@@ -268,6 +267,21 @@
         </label>
         <div class="actions">
           <button id="piano-preview" class="ghost" type="button">试听钢琴</button>
+        </div>
+      </section>
+
+      <section class="settings-block">
+        <h2>音准范围</h2>
+        <p class="hint">十个音抽的音，和移动版「随机」抽的音，都在这段里。自己选音不受这段限制。</p>
+        <div class="range-pick">
+          <label>
+            最低
+            <select id="tune-range-low"></select>
+          </label>
+          <label>
+            最高
+            <select id="tune-range-high"></select>
+          </label>
         </div>
       </section>
 
