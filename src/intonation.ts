@@ -601,9 +601,7 @@ function randomizeMobile(): void {
   const range = readTuneRange()
   mobileNote = pickMobileNote(mobileNote, Math.random, range.low, range.high)
   localStorage.setItem(MOBILE_KEY, String(mobileNote))
-  liveMidi = null
-  clearTrace()
-  render()
+  void playMobile()
 }
 
 function onMobileFrame(speaking: boolean, result: LockResult): void {
@@ -697,12 +695,12 @@ function applyKind(): void {
   mobileTab.setAttribute('aria-pressed', mobile ? 'true' : 'false')
   titleEl.textContent = mobile ? '外出练这个音' : input ? '对着琴上的音唱' : '连准十个音'
   ledeEl.textContent = mobile
-    ? '先看波形。点「播放」听这个音，或点「随机」换一个。再对着亮线唱。准不准自己看线。'
+    ? '先看波形。点「播放」听这个音，或点「随机」换一个并马上播放。再对着亮线唱。准不准自己看线。'
     : input
       ? '先按住琴上的一个音。记下来以后松开，对着亮线唱。准不准自己看线。唱完点「换一个音」，想停点「结束」。'
       : '先听一个音，再唱成同一个音。准了才弹下一个。连续十个都准，这一轮过关。'
   hintEl.textContent = mobile
-    ? '波形下面是「播放」和「随机」。当前音在按钮下面。点「全屏」后只留波形、播放和随机。系统锁在竖屏时，也会固定用横屏的排法。点「随机」会在「设置」里的音准范围里换一个音，和十个音用的是同一段。这里不判断，也不念出来。'
+    ? '波形下面是「播放」和「随机」。当前音在按钮下面。点「全屏」后只留波形、播放和随机。系统锁在竖屏时，也会固定用横屏的排法。点「随机」会在「设置」里的音准范围里换一个音，并马上播放，和十个音用的是同一段。这里不判断，也不念出来。'
     : input
       ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
       : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
