@@ -1,5 +1,5 @@
 import { PitchListener, micErrorMessage } from './audio.ts'
-import { createSelfInput, stepSelfInput, type SelfInputState } from './intonation-input.ts'
+import { INPUT_KEY_HOLD_MS, createSelfInput, stepSelfInput, type SelfInputState } from './intonation-input.ts'
 import {
   judgePitch,
   makeRound,
@@ -19,7 +19,7 @@ import {
 } from './intonation-trace.ts'
 import { formatNote, freqToMidi, midiToName, type LockResult } from './pitch.ts'
 import { playMidiSequence } from './scale-player.ts'
-import { gateMarkRatio, gateToRms, readSettings, subscribeSettings } from './settings.ts'
+import { gateMarkRatio, gateToRms, subscribeSettings } from './settings.ts'
 import { readTuneRange, subscribeTuneRange } from './tune-range.ts'
 import { nextWideSide, wideFrame, type WideSide } from './wide-tilt.ts'
 import { silenceSpeech, speakChinese } from './speak.ts'
@@ -311,9 +311,10 @@ function onInputFrame(speaking: boolean, result: LockResult): void {
       time: performance.now(),
       freq: result.freq,
       midi: result.midi,
-      stable: result.stable,
+      // This 0.4s is the whole key hold. It does not wait out the shared stability time.
+      stable: true,
     },
-    Math.round(readSettings().noteSeconds * 1000),
+    INPUT_KEY_HOLD_MS,
   )
   selfInput = step.state
   if (step.locked != null || step.armed) clearTrace()
@@ -702,7 +703,7 @@ function applyKind(): void {
   hintEl.textContent = mobile
     ? '波形下面是「播放」和「随机」。当前音在按钮下面。点「全屏」后只留波形、播放和随机。系统锁在竖屏时，也会固定用横屏的排法。点「随机」会在「设置」里的音准范围里换一个音，并马上播放，和十个音用的是同一段。这里不判断，也不念出来。'
     : input
-      ? '点「听我弹」，按住一个音，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
+      ? '点「听我弹」，按住一个音大约 0.4 秒，直到屏幕记下它。松开后对着中间的亮线唱，音高线贴上去就是准。这里不判断，也不念出来。唱完自己点「换一个音」。想停，点「结束」。'
       : '中间的亮线是要唱的音，音高线贴上去就准。浅色带是上下 25 音分。先稳住「设置」里的那段时间，再判断。请戴耳机，免得弹出的音被当成你唱的。'
 }
 

@@ -1,3 +1,6 @@
+/** A steady keyboard note is kept after this. Shorter than a played exercise note. */
+export const INPUT_KEY_HOLD_MS = 400
+
 /** Brief holes in a held note. Shorter than this, the note is still going. */
 export const INPUT_DROPOUT_MS = 80
 

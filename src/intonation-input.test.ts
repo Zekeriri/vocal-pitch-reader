@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   INPUT_DROPOUT_MS,
   INPUT_GAP_MS,
+  INPUT_KEY_HOLD_MS,
   createSelfInput,
   stepSelfInput,
   type InputFrame,
@@ -46,6 +47,14 @@ function readyToSing(midi = 60): { state: SelfInputState; at: number } {
 }
 
 describe('self-input loop', () => {
+  it('locks a keyboard note after the shorter hold', () => {
+    const early = play([heard(0, 67), heard(INPUT_KEY_HOLD_MS - 1, 67)], INPUT_KEY_HOLD_MS)
+    expect(early.events.at(-1)?.locked).toBeNull()
+    const locked = play([heard(0, 67), heard(INPUT_KEY_HOLD_MS, 67)], INPUT_KEY_HOLD_MS)
+    expect(locked.events.at(-1)?.locked).toBe(67)
+    expect(INPUT_KEY_HOLD_MS).toBe(400)
+  })
+
   it('locks a keyboard note only after it has stayed for the whole note', () => {
     const early = play([heard(0, 67), heard(NOTE_MS - 1, 67)])
     expect(early.events.at(-1)?.locked).toBeNull()
