@@ -4,7 +4,7 @@ export type TracePoint = {
 }
 
 export const TRACE_SPAN_CENTS = 100
-export const TRACE_MATCH_CENTS = 25
+export const TRACE_MATCH_CENTS = 50
 export const TRACE_CENTER_Y = 60
 export const TRACE_HALF_PX = 42
 export const TRACE_GUIDE_CENTS = [100, 50, -50, -100] as const

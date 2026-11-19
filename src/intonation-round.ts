@@ -1,7 +1,7 @@
 import { freqToMidi } from './pitch.ts'
 
 export const ROUND_LENGTH = 10
-export const MATCH_CENTS = 25
+export const MATCH_CENTS = 50
 export const RANGE_FLOOR = 45
 export const RANGE_CEILING = 72
 export const NOTE_LOW = 48

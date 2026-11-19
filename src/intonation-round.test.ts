@@ -18,9 +18,9 @@ function freqAtCents(midi: number, cents: number): number {
 describe('intonation round', () => {
   it('calls a pitch matched, low, or high against the played note', () => {
     expect(judgePitch(freqAtCents(67, 0), 67)).toBe('match')
-    expect(judgePitch(freqAtCents(67, 20), 67)).toBe('match')
-    expect(judgePitch(freqAtCents(67, -24), 67)).toBe('match')
-    expect(judgePitch(freqAtCents(67, 40), 67)).toBe('high')
+    expect(judgePitch(freqAtCents(67, 50), 67)).toBe('match')
+    expect(judgePitch(freqAtCents(67, -50), 67)).toBe('match')
+    expect(judgePitch(freqAtCents(67, 51), 67)).toBe('high')
     expect(judgePitch(freqAtCents(67, -80), 67)).toBe('low')
     expect(verdictText('low')).toBe('低了')
     expect(verdictText('high')).toBe('高了')
